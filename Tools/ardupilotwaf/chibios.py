@@ -31,7 +31,7 @@ def _load_dynamic_env_data(bld):
             # relative paths from the make build are relative to BUILDROOT
             d = os.path.join(bld.env.BUILDROOT, d)
         d = os.path.normpath(d)
-        if not d in idirs2:
+        if d not in idirs2:
             idirs2.append(d)
     _dynamic_env_data['include_dirs'] = idirs2
 
@@ -56,9 +56,9 @@ class upload_fw(Task.Task):
         upload_tools = self.env.get_flat('UPLOAD_TOOLS')
         upload_port = self.generator.bld.options.upload_port
         src = self.inputs[0]
-        cmd = "{} '{}/uploader.py' '{}'".format(self.env.get_flat('PYTHON'), upload_tools, src)
+        cmd = f"{self.env.get_flat('PYTHON')} '{upload_tools}/uploader.py' '{src}'"
         if upload_port is not None:
-            cmd += " '--port' '%s'" % upload_port
+            cmd += f" '--port' '{upload_port}'"
         return self.exec_command(cmd)
 
     def exec_command(self, cmd, **kw):
@@ -107,17 +107,17 @@ class set_app_descriptor(Task.Task):
     def keyword(self):
         return "app_descriptor"
     def run(self):
-        if not 'APP_DESCRIPTOR' in self.env:
+        if 'APP_DESCRIPTOR' not in self.env:
             return
         if self.env.APP_DESCRIPTOR == 'MissionPlanner':
             descriptor = b'\x40\xa2\xe4\xf1\x64\x68\x91\x06'
         else:
-            Logs.error("Bad APP_DESCRIPTOR %s" % self.env.APP_DESCRIPTOR)
+            Logs.error(f"Bad APP_DESCRIPTOR {self.env.APP_DESCRIPTOR}")
             return
         img = open(self.inputs[0].abspath(), 'rb').read()
         offset = img.find(descriptor)
         if offset == -1:
-            Logs.error("Failed to find %s APP_DESCRIPTOR" % self.env.APP_DESCRIPTOR)
+            Logs.error(f"Failed to find {self.env.APP_DESCRIPTOR} APP_DESCRIPTOR")
             return
         offset += 8
         # next 8 bytes is 64 bit CRC. We set first 4 bytes to
@@ -131,7 +131,9 @@ class set_app_descriptor(Task.Task):
         desc_len = 16
         crc1 = to_unsigned(crc32(bytearray(img[:offset])))
         crc2 = to_unsigned(crc32(bytearray(img[offset+desc_len:])))
-        githash = to_unsigned(int('0x' + self.generator.bld.git_head_hash(short=True),16))
+        githash = to_unsigned(
+            int(f'0x{self.generator.bld.git_head_hash(short=True)}', 16)
+        )
         desc = struct.pack('<IIII', crc1, crc2, len(img), githash)
         img = img[:offset] + desc + img[offset+desc_len:]
         Logs.info("Applying %s APP_DESCRIPTOR %08x%08x" % (self.env.APP_DESCRIPTOR, crc1, crc2))
@@ -149,8 +151,8 @@ class generate_apj(Task.Task):
         d = {
             "board_id": int(self.env.APJ_BOARD_ID),
             "magic": "APJFWv1",
-            "description": "Firmware for a %s board" % self.env.APJ_BOARD_TYPE,
-            "image": base64.b64encode(zlib.compress(img,9)).decode('utf-8'),
+            "description": f"Firmware for a {self.env.APJ_BOARD_TYPE} board",
+            "image": base64.b64encode(zlib.compress(img, 9)).decode('utf-8'),
             "summary": self.env.BOARD,
             "version": "0.1",
             "image_size": len(img),
@@ -158,16 +160,15 @@ class generate_apj(Task.Task):
             "flash_free": int(self.env.FLASH_TOTAL) - len(img),
             "git_identity": self.generator.bld.git_head_hash(short=True),
             "board_revision": 0,
-            "USBID": self.env.USBID
+            "USBID": self.env.USBID,
         }
         if self.env.build_dates:
             # we omit build_time when we don't have build_dates so that apj
             # file is idential for same git hash and compiler
             d["build_time"] = int(time.time())
         apj_file = self.outputs[0].abspath()
-        f = open(apj_file, "w")
-        f.write(json.dumps(d, indent=4))
-        f.close()
+        with open(apj_file, "w") as f:
+            f.write(json.dumps(d, indent=4))
 
 class build_abin(Task.Task):
     '''build an abin file for skyviper firmware upload via web UI'''
@@ -211,14 +212,16 @@ def chibios_firmware(self):
         abin_task = self.create_task('build_abin', src=link_output, tgt=abin_target)
         abin_task.set_run_after(generate_apj_task)
 
-    bootloader_bin = self.bld.srcnode.make_node("Tools/bootloaders/%s_bl.bin" % self.env.BOARD)
+    bootloader_bin = self.bld.srcnode.make_node(
+        f"Tools/bootloaders/{self.env.BOARD}_bl.bin"
+    )
     if self.bld.env.HAVE_INTEL_HEX:
         if os.path.exists(bootloader_bin.abspath()):
             hex_target = self.bld.bldnode.find_or_declare('bin/' + link_output.change_ext('.hex').name)
             hex_task = self.create_task('build_intel_hex', src=[bin_target, bootloader_bin], tgt=hex_target)
             hex_task.set_run_after(generate_bin_task)
         else:
-            print("Not embedding bootloader; %s does not exist" % bootloader_bin)
+            print(f"Not embedding bootloader; {bootloader_bin} does not exist")
 
     if self.env.DEFAULT_PARAMETERS:
         default_params_task = self.create_task('set_default_parameters',
@@ -280,16 +283,16 @@ def load_env_vars(env):
             if isinstance(env[k], dict):
                 a = v.split('=')
                 env[k][a[0]] = '='.join(a[1:])
-                print("env updated %s=%s" % (k, v))
+                print(f"env updated {k}={v}")
             elif isinstance(env[k], list):
                 env[k].append(v)
-                print("env appended %s=%s" % (k, v))
+                print(f"env appended {k}={v}")
             else:
                 env[k] = v
-                print("env added %s=%s" % (k, v))
+                print(f"env added {k}={v}")
         else:
             env[k] = v
-            print("env set %s=%s" % (k, v))
+            print(f"env set {k}={v}")
     if env.ENABLE_ASSERTS:
         env.CHIBIOS_BUILD_FLAGS += ' ENABLE_ASSERTS=yes'
     if env.ENABLE_MALLOC_GUARD:
@@ -308,7 +311,7 @@ def setup_optimization(env):
         OPTIMIZE = "-Os"
     env.CFLAGS += [ OPTIMIZE ]
     env.CXXFLAGS += [ OPTIMIZE ]
-    env.CHIBIOS_BUILD_FLAGS += ' USE_COPT=%s' % OPTIMIZE
+    env.CHIBIOS_BUILD_FLAGS += f' USE_COPT={OPTIMIZE}'
 
 def configure(cfg):
     cfg.find_program('make', var='MAKE')
@@ -321,6 +324,7 @@ def configure(cfg):
 
     def bldpath(path):
         return bldnode.make_node(path).abspath()
+
     env.AP_PROGRAM_FEATURES += ['ch_ap_program']
 
     kw = env.AP_LIBRARIES_OBJECTS_KW
@@ -344,14 +348,12 @@ def configure(cfg):
     env.AP_HAL_REL = os.path.relpath(env.AP_HAL_ROOT, env.BUILDROOT)
     env.BUILDDIR_REL = os.path.relpath(env.BUILDDIR, env.BUILDROOT)
 
-    mk_custom = srcpath('libraries/AP_HAL_ChibiOS/hwdef/%s/chibios_board.mk' % env.BOARD)
+    mk_custom = srcpath(
+        f'libraries/AP_HAL_ChibiOS/hwdef/{env.BOARD}/chibios_board.mk'
+    )
     mk_common = srcpath('libraries/AP_HAL_ChibiOS/hwdef/common/chibios_board.mk')
     # see if there is a board specific make file
-    if os.path.exists(mk_custom):
-        env.BOARD_MK = mk_custom
-    else:
-        env.BOARD_MK = mk_common
-
+    env.BOARD_MK = mk_custom if os.path.exists(mk_custom) else mk_common
     if cfg.options.default_parameters:
         cfg.msg('Default parameters', cfg.options.default_parameters, color='YELLOW')
         env.DEFAULT_PARAMETERS = cfg.options.default_parameters
@@ -372,10 +374,16 @@ def generate_hwdef_h(env):
     import subprocess
 
     if env.BOOTLOADER:
-        env.HWDEF = os.path.join(env.SRCROOT, 'libraries/AP_HAL_ChibiOS/hwdef/%s/hwdef-bl.dat' % env.BOARD)
+        env.HWDEF = os.path.join(
+            env.SRCROOT,
+            f'libraries/AP_HAL_ChibiOS/hwdef/{env.BOARD}/hwdef-bl.dat',
+        )
         env.BOOTLOADER_OPTION="--bootloader"
     else:
-        env.HWDEF = os.path.join(env.SRCROOT, 'libraries/AP_HAL_ChibiOS/hwdef/%s/hwdef.dat' % env.BOARD)
+        env.HWDEF = os.path.join(
+            env.SRCROOT,
+            f'libraries/AP_HAL_ChibiOS/hwdef/{env.BOARD}/hwdef.dat',
+        )
         env.BOOTLOADER_OPTION=""
     hwdef_script = os.path.join(env.SRCROOT, 'libraries/AP_HAL_ChibiOS/hwdef/scripts/chibios_hwdef.py')
     hwdef_out = env.BUILDROOT
@@ -386,7 +394,7 @@ def generate_hwdef_h(env):
     if env.HWDEF_EXTRA:
         cmd += " '{0}'".format(env.HWDEF_EXTRA)
     if env.BOOTLOADER_OPTION:
-        cmd += " " + env.BOOTLOADER_OPTION
+        cmd += f" {env.BOOTLOADER_OPTION}"
     return subprocess.call(cmd, shell=True)
 
 def pre_build(bld):
@@ -408,16 +416,11 @@ def pre_build(bld):
 def build(bld):
 
 
-    hwdef_rule="%s '%s/hwdef/scripts/chibios_hwdef.py' -D '%s' --params '%s' '%s'" % (
-            bld.env.get_flat('PYTHON'),
-            bld.env.AP_HAL_ROOT,
-            bld.env.BUILDROOT,
-            bld.env.default_parameters,
-            bld.env.HWDEF)
+    hwdef_rule = f"{bld.env.get_flat('PYTHON')} '{bld.env.AP_HAL_ROOT}/hwdef/scripts/chibios_hwdef.py' -D '{bld.env.BUILDROOT}' --params '{bld.env.default_parameters}' '{bld.env.HWDEF}'"
     if bld.env.HWDEF_EXTRA:
-        hwdef_rule += " " + bld.env.HWDEF_EXTRA
+        hwdef_rule += f" {bld.env.HWDEF_EXTRA}"
     if bld.env.BOOTLOADER_OPTION:
-        hwdef_rule += " " + bld.env.BOOTLOADER_OPTION
+        hwdef_rule += f" {bld.env.BOOTLOADER_OPTION}"
     bld(
         # build hwdef.h from hwdef.dat. This is needed after a waf clean
         source=bld.path.ant_glob(bld.env.HWDEF),
@@ -427,7 +430,7 @@ def build(bld):
                 bld.bldnode.find_or_declare('ldscript.ld'),
                 bld.bldnode.find_or_declare('hw.dat')]
     )
-    
+
     bld(
         # create the file modules/ChibiOS/include_dirs
         rule="touch Makefile && BUILDDIR=${BUILDDIR_REL} CHIBIOS=${CH_ROOT_REL} AP_HAL=${AP_HAL_REL} ${CHIBIOS_BUILD_FLAGS} ${CHIBIOS_BOARD_NAME} ${MAKE} pass -f '${BOARD_MK}'",
@@ -475,4 +478,4 @@ def build(bld):
                 'clearerr', 'fseek', 'ferror', 'fclose', 'tmpfile', 'getc', 'ungetc', 'feof',
                 'ftell', 'freopen', 'remove', 'vfprintf', 'fscanf' ]
     for w in wraplist:
-        bld.env.LINKFLAGS += ['-Wl,--wrap,%s' % w]
+        bld.env.LINKFLAGS += [f'-Wl,--wrap,{w}']

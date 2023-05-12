@@ -51,8 +51,7 @@ This list is automatically generated from the latest ardupilot source code, and 
         self.t = ''
 
     def escape(self, s):
-        ret = re.sub(self.rstescape, "\\\\\g<1>", s)
-        return ret
+        return re.sub(self.rstescape, "\\\\\g<1>", s)
 
     def close(self):
         self.f.write(self.preamble)
@@ -77,17 +76,17 @@ This list is automatically generated from the latest ardupilot source code, and 
             out_line = ""
             if rowheading is not None:
                 rowheading_line = rowheading_lines[i]
-                out_line += joiner + " " + rowheading_line + " " * (widths[0] - len(rowheading_line) - 1)
+                out_line += f"{joiner} {rowheading_line}" + " " * (
+                    widths[0] - len(rowheading_line) - 1
+                )
                 joiner = "#"
-            j = 0
-            for item in row_lines:
+            for j, item in enumerate(row_lines):
                 widthnum = j
                 if rowheading is not None:
                     widthnum += 1
                 line = item[i]
-                out_line += joiner + " " + line + " " * (widths[widthnum] - len(line) - 1)
+                out_line += f"{joiner} {line}" + " " * (widths[widthnum] - len(line) - 1)
                 joiner = "|"
-                j += 1
             out_line += "|"
             out_lines.append(out_line)
         return "\n".join(out_lines)
@@ -134,8 +133,7 @@ This list is automatically generated from the latest ardupilot source code, and 
             if rowheadings is not None:
                 values_to_check.append(all_rowheadings[rownum])
             values_to_check.extend(row[:])
-            colnum = 0
-            for value in values_to_check:
+            for colnum, value in enumerate(values_to_check):
                 height = len(value.split("\n"))
                 if height > heights[rownum]:
                     heights[rownum] = height
@@ -143,7 +141,6 @@ This list is automatically generated from the latest ardupilot source code, and 
                 width = longest_line + 2  # +2 for leading/trailing ws
                 if width > widths[colnum]:
                     widths[colnum] = width
-                colnum += 1
         return (widths, heights)
 
     def tablify(self, rows, headings=None, rowheadings=None):
@@ -190,8 +187,8 @@ This list is automatically generated from the latest ardupilot source code, and 
         return self.tablify(rows, headings=render_info["headings"])
 
     def emit(self, g):
-        tag = '%s Parameters' % self.escape(g.reference)
-        reference = "parameters_" + g.reference
+        tag = f'{self.escape(g.reference)} Parameters'
+        reference = f"parameters_{g.reference}"
 
         field_table_info = {
             "Values": {
@@ -221,15 +218,15 @@ This list is automatically generated from the latest ardupilot source code, and 
 
             name = param.name.split(':')[-1]
 
-            tag_param_path = ' (%s)' % param_path if param_path else ''
-            tag = '%s%s: %s' % (self.escape(name), self.escape(tag_param_path), self.escape(param.DisplayName),)
+            tag_param_path = f' ({param_path})' if param_path else ''
+            tag = f'{self.escape(name)}{self.escape(tag_param_path)}: {self.escape(param.DisplayName)}'
 
             tag = tag.strip()
             reference = param.name
             # remove e.g. "ArduPlane:" from start of parameter name:
             reference = reference.split(":")[-1]
             if param_path:
-                reference += '__' + param_path
+                reference += f'__{param_path}'
 
             ret += """
 
@@ -252,7 +249,7 @@ This list is automatically generated from the latest ardupilot source code, and 
                         row.append(self.render_prog_values_field(field_table_info[field], param, field))
                     elif field == "Range":
                         (param_min, param_max) = (param.__dict__[field]).split(' ')
-                        row.append("%s - %s" % (param_min, param_max,))
+                        row.append(f"{param_min} - {param_max}")
                     elif field == 'Units':
                         abreviated_units = param.__dict__[field]
                         if abreviated_units != '':

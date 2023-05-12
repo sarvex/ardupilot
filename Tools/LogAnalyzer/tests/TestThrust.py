@@ -20,20 +20,19 @@ class TestThrust(Test):
             self.result.status = TestResult.StatusType.NA
             return
 
-        if not "CTUN" in logdata.channels:
+        if "CTUN" not in logdata.channels:
             self.result.status = TestResult.StatusType.UNKNOWN
             self.result.statusMessage = "No CTUN log data"
             return
-        if not "ATT" in logdata.channels:
+        if "ATT" not in logdata.channels:
             self.result.status = TestResult.StatusType.UNKNOWN
             self.result.statusMessage = "No ATT log data"
             return
 
-        throut_key = None
-        for key in "ThO", "ThrOut":
-            if key in logdata.channels["CTUN"]:
-                throut_key = key
-                break
+        throut_key = next(
+            (key for key in ("ThO", "ThrOut") if key in logdata.channels["CTUN"]),
+            None,
+        )
         if throut_key is None:
             self.result.status = TestResult.StatusType.UNKNOWN
             self.result.statusMessage = "Could not find throttle out column"
@@ -61,7 +60,7 @@ class TestThrust(Test):
                 if (abs(roll) > tiltThreshold) or (abs(pitch) > tiltThreshold):
                     isBelowTiltThreshold = False
             if (value > highThrottleThreshold) and isBelowTiltThreshold:
-                if start == None:
+                if start is None:
                     start = i
             elif start != None:
                 if (i-start) > minSampleLength:
@@ -69,10 +68,7 @@ class TestThrust(Test):
                     highThrottleSegments.append((start,i))
                 start = None
 
-        climbRate = "CRate"
-        if "CRate" not in logdata.channels["CTUN"]:
-            climbRate = "CRt"
-
+        climbRate = "CRt" if "CRate" not in logdata.channels["CTUN"] else "CRate"
         # loop through each checking climbRate, if < 50 FAIL, if < 100 WARN
         # TODO: we should filter climbRate and use its slope rather than value for this test
         for seg in highThrottleSegments:

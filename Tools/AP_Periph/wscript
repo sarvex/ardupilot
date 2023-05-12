@@ -63,9 +63,11 @@ def build(bld):
     bld.ap_program(
         program_name='AP_Periph',
         use=['AP_Periph_libs', 'libcanard'],
-        program_groups=['bin','AP_Periph'],
-        includes=[bld.env.SRCROOT + '/modules/libcanard',
-                  bld.env.BUILDROOT + '/modules/libcanard/dsdlc_generated']
+        program_groups=['bin', 'AP_Periph'],
+        includes=[
+            f'{bld.env.SRCROOT}/modules/libcanard',
+            f'{bld.env.BUILDROOT}/modules/libcanard/dsdlc_generated',
+        ],
     )
 
     bld(

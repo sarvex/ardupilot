@@ -92,8 +92,7 @@ class AutoTestBalanceBot(AutoTestRover):
                     raise NotAchievedException("wheel distance incorrect")
             self.disarm_vehicle()
         except Exception as e:
-            self.progress("Caught exception: %s" %
-                          self.get_exception_stacktrace(e))
+            self.progress(f"Caught exception: {self.get_exception_stacktrace(e)}")
             self.disarm_vehicle()
             ex = e
         self.reboot_sitl()
@@ -107,34 +106,33 @@ class AutoTestBalanceBot(AutoTestRover):
 inherit Rover's tests!'''
         ret = AutoTest.tests(self)
 
-        ret.extend([
-
-            ("DriveRTL",
-             "Drive an RTL Mission",
-             self.drive_rtl_mission),
-
-            ("DriveMission",
-             "Drive Mission %s" % "balancebot1.txt",
-             lambda: self.drive_mission("balancebot1.txt", strict=False)),
-
-            ("TestWheelEncoder",
-             "Test wheel encoders",
-             self.test_wheelencoders),
-
-            ("GetBanner", "Get Banner", self.do_get_banner),
-
-            ("DO_SET_MODE",
-             "Set mode via MAV_COMMAND_DO_SET_MODE",
-             self.test_do_set_mode_via_command_long),
-
-            ("ServoRelayEvents",
-             "Test ServoRelayEvents",
-             self.test_servorelayevents),
-
-            ("LogUpload",
-             "Upload logs",
-             self.log_upload),
-        ])
+        ret.extend(
+            [
+                ("DriveRTL", "Drive an RTL Mission", self.drive_rtl_mission),
+                (
+                    "DriveMission",
+                    'Drive Mission balancebot1.txt',
+                    lambda: self.drive_mission("balancebot1.txt", strict=False),
+                ),
+                (
+                    "TestWheelEncoder",
+                    "Test wheel encoders",
+                    self.test_wheelencoders,
+                ),
+                ("GetBanner", "Get Banner", self.do_get_banner),
+                (
+                    "DO_SET_MODE",
+                    "Set mode via MAV_COMMAND_DO_SET_MODE",
+                    self.test_do_set_mode_via_command_long,
+                ),
+                (
+                    "ServoRelayEvents",
+                    "Test ServoRelayEvents",
+                    self.test_servorelayevents,
+                ),
+                ("LogUpload", "Upload logs", self.log_upload),
+            ]
+        )
         return ret
 
     def default_mode(self):

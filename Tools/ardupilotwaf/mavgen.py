@@ -34,8 +34,7 @@ class mavgen(Task.Task):
             includes = root.findall('include')
             for i in includes:
                 path = i.text.strip()
-                n = node.parent.find_node(path)
-                if n:
+                if n := node.parent.find_node(path):
                     nodes.append(n)
                     if n not in queue:
                         queue.append(n)
@@ -45,7 +44,7 @@ class mavgen(Task.Task):
                     node.parent.path_from(entry_point.parent),
                     path
                 )
-                if not path in names:
+                if path not in names:
                     names.append(path)
 
         return nodes, names
@@ -59,9 +58,7 @@ class mavgen(Task.Task):
             validate = False
             output = self.env.get_flat('OUTPUT_DIR')
         xml = self.inputs[0].abspath()
-        if mavgen.mavgen(mavgen_options(), [xml]):
-            return 0
-        return 1
+        return 0 if mavgen.mavgen(mavgen_options(), [xml]) else 1
 
     def post_run(self):
         super(mavgen, self).post_run()

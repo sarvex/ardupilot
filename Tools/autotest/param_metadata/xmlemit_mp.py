@@ -29,13 +29,12 @@ class XmlEmitMP(Emit):
         vehicle = tree.find(self.gname)
         sort_xml_node(vehicle)
         sorted_unicode = etree.tostring(root, pretty_print=True, encoding='unicode')
-        f = open(self.mp_fname, mode='w')
-        f.write(self.preamble)
-        f.write(sorted_unicode)
-        f.close()
+        with open(self.mp_fname, mode='w') as f:
+            f.write(self.preamble)
+            f.write(sorted_unicode)
 
     def emit_comment(self, s):
-        self.f.write("<!-- " + s + " -->")
+        self.f.write(f"<!-- {s} -->")
 
     def start_libraries(self):
         self.skip_name = True
@@ -46,7 +45,7 @@ class XmlEmitMP(Emit):
             self.gname = g.reference
             if self.gname == "ArduCopter":
                 self.gname = "ArduCopter2"
-            if self.gname == "APMrover2" or self.gname == "Rover":
+            if self.gname in ["APMrover2", "Rover"]:
                 self.gname = "ArduRover"
             t = '  <%s>\n' % self.gname
 

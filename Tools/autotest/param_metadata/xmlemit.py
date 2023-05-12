@@ -27,7 +27,7 @@ class XmlEmit(Emit):
         self.f.close()
 
     def emit_comment(self, s):
-        self.f.write("<!-- " + s + " -->")
+        self.f.write(f"<!-- {s} -->")
 
     def start_libraries(self):
         self.current_element = self.libraries
@@ -59,7 +59,7 @@ class XmlEmit(Emit):
                         for value in values:
                             v = value.split(':')
                             if len(v) != 2:
-                                raise ValueError("Bad value (%s)" % v)
+                                raise ValueError(f"Bad value ({v})")
                             # i.e. numeric value, string label
                             xml_value = etree.SubElement(xml_values, 'value', code=v[0])
                             xml_value.text = v[1]

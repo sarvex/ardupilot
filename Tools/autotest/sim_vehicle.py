@@ -62,28 +62,13 @@ class CompatOptionParser(optparse.OptionParser):
 
         # taken and modified from from optparse.py's format_option
         def format_option_preserve_nl(self, option):
-            # The help for each option consists of two parts:
-            #   * the opt strings and metavars
-            #     eg. ("-x", or "-fFILENAME, --file=FILENAME")
-            #   * the user-supplied help string
-            #     eg. ("turn on expert mode", "read data from FILENAME")
-            #
-            # If possible, we write both of these on the same line:
-            #   -x      turn on expert mode
-            #
-            # But if the opt string list is too long, we put the help
-            # string on a second line, indented to the same column it would
-            # start in if it fit on the first line.
-            #   -fFILENAME, --file=FILENAME
-            #           read data from FILENAME
-            result = []
             opts = self.option_strings[option]
             opt_width = self.help_position - self.current_indent - 2
             if len(opts) > opt_width:
                 opts = "%*s%s\n" % (self.current_indent, "", opts)
             else:                       # start help on same line as opts
                 opts = "%*s%-*s  " % (self.current_indent, "", opt_width, opts)
-            result.append(opts)
+            result = [opts]
             if option.help:
                 help_text = self.expand_default(option)
                 tw = textwrap.TextWrapper(replace_whitespace=False,
@@ -102,7 +87,7 @@ class CompatOptionParser(optparse.OptionParser):
             return "".join(result)
 
         def format_option(self, option):
-            if str(option).find('frame') != -1:
+            if 'frame' in str(option):
                 return self.format_option_preserve_nl(option)
             return optparse.IndentedHelpFormatter.format_option(self, option)
 
@@ -152,9 +137,9 @@ def cygwin_pidof(proc_name):
     """ Thanks to kata198 for this:
     https://github.com/kata198/cygwin-ps-misc/blob/master/pidof
     """
-    pipe = subprocess.Popen("ps -ea | grep " + proc_name,
-                            shell=True,
-                            stdout=subprocess.PIPE)
+    pipe = subprocess.Popen(
+        f"ps -ea | grep {proc_name}", shell=True, stdout=subprocess.PIPE
+    )
     output_lines = pipe.stdout.read().decode('utf-8').replace("\r", "").split("\n")
     ret = pipe.wait()
     pids = []
@@ -211,9 +196,12 @@ def kill_tasks_psutil(victims):
         pdict = proc.as_dict(attrs=['environ', 'status'])
         if pdict['status'] == psutil.STATUS_ZOMBIE:
             continue
-        if pdict['environ'] is not None:
-            if pdict['environ'].get('SIM_VEHICLE_SESSION') == os.environ['SIM_VEHICLE_SESSION']:
-                proc.kill()
+        if (
+            pdict['environ'] is not None
+            and pdict['environ'].get('SIM_VEHICLE_SESSION')
+            == os.environ['SIM_VEHICLE_SESSION']
+        ):
+            proc.kill()
 
 
 def kill_tasks_pkill(victims):
@@ -239,15 +227,13 @@ def kill_tasks():
             'ArduCopter.elf',
             'ArduSub.elf',
             'Rover.elf',
-            'AntennaTracker.elf',
             'JSBSIm.exe',
             'MAVProxy.exe',
             'runsim.py',
             'AntennaTracker.elf',
-            'scrimmage'
-            'ardurover',
+            'scrimmage' 'ardurover',
             'arduplane',
-            'arducopter'
+            'arducopter',
         }
         for vehicle in vinfo.options:
             for frame in vinfo.options[vehicle]["frames"]:
@@ -268,12 +254,12 @@ def kill_tasks():
         except ImportError:
             kill_tasks_pkill(victim_names)
     except Exception as e:
-        progress("kill_tasks failed: {}".format(str(e)))
+        progress(f"kill_tasks failed: {str(e)}")
 
 
 def progress(text):
     """Display sim_vehicle progress text"""
-    print("SIM_VEHICLE: " + text)
+    print(f"SIM_VEHICLE: {text}")
 
 
 def wait_unlimited():
@@ -299,16 +285,12 @@ def do_build(opts, frame_options):
         cmd_configure.append("--debug")
 
     if opts.OSD:
-        cmd_configure.append("--enable-sfml")
-        cmd_configure.append("--sitl-osd")
-
+        cmd_configure.extend(("--enable-sfml", "--sitl-osd"))
     if opts.OSDMSP:
         cmd_configure.append("--osd")
 
     if opts.rgbled:
-        cmd_configure.append("--enable-sfml")
-        cmd_configure.append("--sitl-rgbled")
-
+        cmd_configure.extend(("--enable-sfml", "--sitl-rgbled"))
     if opts.tonealarm:
         cmd_configure.append("--enable-sfml-audio")
 
@@ -385,10 +367,7 @@ def get_user_locations_path():
         'XDG_CONFIG_DIR',
         os.path.join(os.environ.get('HOME', '.'), '.config'))
 
-    user_locations_path = os.path.join(
-        config_dir, 'ardupilot', 'locations.txt')
-
-    return user_locations_path
+    return os.path.join(config_dir, 'ardupilot', 'locations.txt')
 
 
 def find_offsets(instances, file_path):
@@ -427,7 +406,7 @@ def find_geocoder_location(locname):
         return None
     j = geocoder.osm(locname)
     if j is None or not hasattr(j, 'lat') or j.lat is None:
-        print("geocoder failed to find '%s'" % locname)
+        print(f"geocoder failed to find '{locname}'")
         return None
     lat = j.lat
     lon = j.lng
@@ -437,12 +416,13 @@ def find_geocoder_location(locname):
     start = time.time()
     alt = None
     while time.time() - start < 5:
-        tile = downloader.getTile(int(math.floor(lat)), int(math.floor(lon)))
-        if tile:
+        if tile := downloader.getTile(
+            int(math.floor(lat)), int(math.floor(lon))
+        ):
             alt = tile.getAltitudeFromLatLon(lat, lon)
             break
     if alt is None:
-        print("timed out getting altitude for '%s'" % locname)
+        print(f"timed out getting altitude for '{locname}'")
         return None
     return [lat, lon, alt, 0.0]
 
@@ -488,7 +468,7 @@ def find_spawns(loc, offsets):
 def progress_cmd(what, cmd):
     """Print cmd in a way a user could cut-and-paste to get the same effect"""
     progress(what)
-    shell_text = "%s" % (" ".join(['"%s"' % x for x in cmd]))
+    shell_text = f"""{" ".join([f'"{x}"' for x in cmd])}"""
     progress(shell_text)
 
 
@@ -500,7 +480,7 @@ def run_cmd_blocking(what, cmd, quiet=False, check=False, **kw):
         p = subprocess.Popen(cmd, **kw)
         ret = os.waitpid(p.pid, 0)
     except Exception as e:
-        print("[%s] An exception has occurred with command: '%s'" % (what, (' ').join(cmd)))
+        print(f"[{what}] An exception has occurred with command: '{' '.join(cmd)}'")
         print(e)
         sys.exit(1)
 
@@ -517,7 +497,7 @@ def run_in_terminal_window(name, cmd, **kw):
     global windowID
     runme = [os.path.join(autotest_dir, "run_in_terminal_window.sh"), name]
     runme.extend(cmd)
-    progress_cmd("Run " + name, runme)
+    progress_cmd(f"Run {name}", runme)
 
     if under_macos() and os.environ.get('DISPLAY'):
         # on MacOS record the window IDs so we can close them later
@@ -538,7 +518,7 @@ def run_in_terminal_window(name, cmd, **kw):
         if len(tabs) > 0:
             windowID.append(tabs[0])
         else:
-            progress("Cannot find %s process terminal" % name)
+            progress(f"Cannot find {name} process terminal")
     else:
         subprocess.Popen(runme, **kw)
 
@@ -560,7 +540,7 @@ def start_antenna_tracker(opts):
     tracker_instance = 1
     oldpwd = os.getcwd()
     os.chdir(vehicledir)
-    tracker_uarta = "tcp:127.0.0.1:" + str(5760 + 10 * tracker_instance)
+    tracker_uarta = f"tcp:127.0.0.1:{str(5760 + 10 * tracker_instance)}"
     if cmd_opts.build_system == "waf":
         binary_basedir = "build/sitl"
         exe = os.path.join(root_dir,
@@ -568,12 +548,16 @@ def start_antenna_tracker(opts):
                            "bin/antennatracker")
     else:
         exe = os.path.join(vehicledir, "AntennaTracker.elf")
-    run_in_terminal_window("AntennaTracker",
-                           ["nice",
-                            exe,
-                            "-I" + str(tracker_instance),
-                            "--model=tracker",
-                            "--home=" + ",".join([str(x) for x in tracker_home])])
+    run_in_terminal_window(
+        "AntennaTracker",
+        [
+            "nice",
+            exe,
+            f"-I{tracker_instance}",
+            "--model=tracker",
+            "--home=" + ",".join([str(x) for x in tracker_home]),
+        ],
+    )
     os.chdir(oldpwd)
 
 

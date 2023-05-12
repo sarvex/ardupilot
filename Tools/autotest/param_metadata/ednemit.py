@@ -26,20 +26,17 @@ class EDNEmit(Emit):
         else:
             raise Exception('Vehicle name never found')
         self.output += "}"
-        f = open("parameters.edn", mode='w')
-        f.write(self.output)
-        f.close()
+        with open("parameters.edn", mode='w') as f:
+            f.write(self.output)
 
     def start_libraries(self):
         pass
 
     def emit(self, g):
         for param in g.params:
-            output_dict = dict()
-            # lowercase all keywords
-            for key in param.__dict__.keys():
-                output_dict[key.lower()] = param.__dict__[key]
-
+            output_dict = {
+                key.lower(): param.__dict__[key] for key in param.__dict__.keys()
+            }
             # strip off any leading sillyness on the param name
             split_name = param.__dict__["name"].split(":")
             if len(split_name) == 2:
@@ -69,7 +66,7 @@ class EDNEmit(Emit):
 
             # rearrange values into a float indexed map
             if "values" in output_dict:
-                values = dict()
+                values = {}
                 for value in output_dict["values"].split(","):
                     index, description = value.split(":")
                     values[float(index)] = description

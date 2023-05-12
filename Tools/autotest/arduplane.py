@@ -64,7 +64,7 @@ class AutoTestPlane(AutoTest):
         return os.path.join(testdir, 'default_params/plane-jsbsim.parm')
 
     def set_current_test_name(self, name):
-        self.current_test_name_directory = "ArduPlane_Tests/" + name + "/"
+        self.current_test_name_directory = f"ArduPlane_Tests/{name}/"
 
     def default_frame(self):
         return "plane-elevrev"
@@ -358,7 +358,7 @@ class AutoTestPlane(AutoTest):
                     if abs(r - target_roll_degrees) < tolerance:
                         state = state_done
                 else:
-                    raise ValueError("Unknown state %s" % str(state))
+                    raise ValueError(f"Unknown state {state}")
 
                 m_nav = self.mav.messages['NAV_CONTROLLER_OUTPUT']
                 self.progress("%s Roll: %f desired=%f set=%f" %
@@ -447,14 +447,11 @@ class AutoTestPlane(AutoTest):
 
         self.change_mode('ACRO')
 
-        count = 2
-        while count > 0:
+        for _ in range(2, 0, -1):
             self.progress("Starting loop")
             self.set_rc(2, 1000)
             self.wait_pitch(-60, accuracy=20)
             self.wait_pitch(0, accuracy=20)
-            count -= 1
-
         self.set_rc(2, 1500)
 
         # back to FBWA
@@ -525,7 +522,7 @@ class AutoTestPlane(AutoTest):
 
     def fly_mission(self, filename, mission_timeout=60.0, strict=True, quadplane=False):
         """Fly a mission from a file."""
-        self.progress("Flying mission %s" % filename)
+        self.progress(f"Flying mission {filename}")
         num_wp = self.load_mission(filename, strict=strict)-1
         self.set_current_waypoint(0, check_afterwards=False)
         self.change_mode('AUTO')
@@ -718,7 +715,7 @@ class AutoTestPlane(AutoTest):
 
     def fly_home_land_and_disarm(self, timeout=120):
         filename = "flaps.txt"
-        self.progress("Using %s to fly home" % filename)
+        self.progress(f"Using {filename} to fly home")
         self.load_mission(filename)
         self.change_mode("AUTO")
         # don't set current waypoint to 8 unless we're distant from it
@@ -777,7 +774,7 @@ class AutoTestPlane(AutoTest):
             self.set_rc(flaps_ch, flaps_ch_min)
             self.wait_servo_channel_value(servo_ch, servo_ch_min)
 
-            self.progress("Flying mission %s" % filename)
+            self.progress(f"Flying mission {filename}")
             self.load_mission(filename)
             self.set_current_waypoint(1)
             self.change_mode('AUTO')
@@ -825,8 +822,7 @@ class AutoTestPlane(AutoTest):
         self.set_rc(12, 1000)
         self.reboot_sitl() # needed for RC12_OPTION to take effect
 
-        off = self.get_parameter("SIM_PIN_MASK")
-        if off:
+        if off := self.get_parameter("SIM_PIN_MASK"):
             raise PreconditionFailedException("SIM_MASK_PIN off")
 
         # allow time for the RC library to register initial value:
@@ -842,8 +838,7 @@ class AutoTestPlane(AutoTest):
         self.set_rc(12, 1000)
         self.wait_heartbeat()
         self.wait_heartbeat()
-        off = self.get_parameter("SIM_PIN_MASK")
-        if off:
+        if off := self.get_parameter("SIM_PIN_MASK"):
             raise NotAchievedException("SIM_PIN_MASK doesn't reflect OFF")
 
     def test_rc_option_camera_trigger(self):
@@ -887,14 +882,15 @@ class AutoTestPlane(AutoTest):
         self.context_collect("HEARTBEAT")
         self.set_parameter("SIM_RC_FAIL", 2) # throttle-to-950
         self.wait_mode('RTL') # long failsafe
-        if (not self.get_mode_from_mode_mapping("CIRCLE") in
-                [x.custom_mode for x in self.context_stop_collecting("HEARTBEAT")]):
+        if self.get_mode_from_mode_mapping("CIRCLE") not in [
+            x.custom_mode for x in self.context_stop_collecting("HEARTBEAT")
+        ]:
             raise NotAchievedException("Did not go via circle mode")
         self.progress("Ensure we've had our throttle squashed to 950")
         self.wait_rc_channel_value(3, 950)
         self.drain_mav_unparsed()
         m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        self.progress("Got (%s)" % str(m))
+        self.progress(f"Got ({str(m)})")
         self.progress("Testing receiver enabled")
         if (not (m.onboard_control_sensors_enabled & receiver_bit)):
             raise NotAchievedException("Receiver not enabled")
@@ -925,12 +921,13 @@ class AutoTestPlane(AutoTest):
         self.context_collect("HEARTBEAT")
         self.set_parameter("SIM_RC_FAIL", 1) # no-pulses
         self.wait_mode('RTL') # long failsafe
-        if (not self.get_mode_from_mode_mapping("CIRCLE") in
-                [x.custom_mode for x in self.context_stop_collecting("HEARTBEAT")]):
+        if self.get_mode_from_mode_mapping("CIRCLE") not in [
+            x.custom_mode for x in self.context_stop_collecting("HEARTBEAT")
+        ]:
             raise NotAchievedException("Did not go via circle mode")
         self.drain_mav_unparsed()
         m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        self.progress("Got (%s)" % str(m))
+        self.progress(f"Got ({str(m)})")
         self.progress("Testing receiver enabled")
         if (not (m.onboard_control_sensors_enabled & receiver_bit)):
             raise NotAchievedException("Receiver not enabled")
@@ -989,7 +986,7 @@ class AutoTestPlane(AutoTest):
 
         self.progress("Checking fence is not present before being configured")
         m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        self.progress("Got (%s)" % str(m))
+        self.progress(f"Got ({str(m)})")
         if (m.onboard_control_sensors_enabled & fence_bit):
             raise NotAchievedException("Fence enabled before being configured")
 
@@ -1006,7 +1003,7 @@ class AutoTestPlane(AutoTest):
         }) # Turn fence on with aux function
 
         m = self.mav.recv_match(type='FENCE_STATUS', blocking=True, timeout=2)
-        self.progress("Got (%s)" % str(m))
+        self.progress(f"Got ({str(m)})")
         if m is None:
             raise NotAchievedException("Got FENCE_STATUS unexpectedly")
 
@@ -1028,7 +1025,7 @@ class AutoTestPlane(AutoTest):
         self.progress("Checking fence is OK after receiver failure (bind-values)")
         fence_bit = mavutil.mavlink.MAV_SYS_STATUS_GEOFENCE
         m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        self.progress("Got (%s)" % str(m))
+        self.progress(f"Got ({str(m)})")
         if (not (m.onboard_control_sensors_enabled & fence_bit)):
             raise NotAchievedException("Fence not enabled after RC fail")
         self.do_fence_disable() # Ensure the fence is disabled after test
@@ -1457,7 +1454,7 @@ class AutoTestPlane(AutoTest):
         msgs = self.get_messages_frame(get_names)
 
         for get_name in get_names:
-            self.progress("%s: %s" % (get_name, msgs[get_name]))
+            self.progress(f"{get_name}: {msgs[get_name]}")
 
         simstate = msgs['SIMSTATE']
         attitude = msgs['ATTITUDE']
@@ -1497,8 +1494,7 @@ class AutoTestPlane(AutoTest):
             attitude_quaternion.q4
         ])
         euler = q.euler
-        self.progress("attquat:%s q:%s euler:%s" % (
-            str(attitude_quaternion), q, euler))
+        self.progress(f"attquat:{str(attitude_quaternion)} q:{q} euler:{euler}")
 
         want = math.degrees(simstate.roll)
         got = math.degrees(euler[0])
@@ -1518,7 +1514,7 @@ class AutoTestPlane(AutoTest):
         ahrs2 = self.mav.recv_match(type='AHRS2', blocking=True, timeout=1)
         if ahrs2 is None:
             raise NotAchievedException("Did not receive AHRS2 message")
-        self.progress("AHRS2: %s" % str(ahrs2))
+        self.progress(f"AHRS2: {str(ahrs2)}")
 
         # check location
         gpi = self.mav.recv_match(
@@ -1528,7 +1524,7 @@ class AutoTestPlane(AutoTest):
         )
         if gpi is None:
             raise NotAchievedException("Did not receive GLOBAL_POSITION_INT message")
-        self.progress("GPI: %s" % str(gpi))
+        self.progress(f"GPI: {str(gpi)}")
         if self.get_distance_int(gpi, ahrs2) > 10:
             raise NotAchievedException("Secondary location looks bad")
 
@@ -1801,8 +1797,8 @@ class AutoTestPlane(AutoTest):
                 raise NotAchievedException("Did not receive GLOBAL_POSITION_INT message")
             if abs(rf.distance - gpi.relative_alt/1000.0) > 3:
                 raise NotAchievedException(
-                    "rangefinder alt (%s) disagrees with global-position-int.relative_alt (%s)" %
-                    (rf.distance, gpi.relative_alt/1000.0))
+                    f"rangefinder alt ({rf.distance}) disagrees with global-position-int.relative_alt ({gpi.relative_alt / 1000.0})"
+                )
             self.wait_statustext("Auto disarmed", timeout=60)
 
             self.progress("Ensure RFND messages in log")
@@ -1871,7 +1867,7 @@ class AutoTestPlane(AutoTest):
                 return
             self.progress("Waiting for collision message")
             m = self.mav.recv_match(type='COLLISION', blocking=True, timeout=1)
-            self.progress("Got (%s)" % str(m))
+            self.progress(f"Got ({str(m)})")
             if m is None:
                 continue
             last_collision = now

@@ -70,8 +70,7 @@ class LoggerDocco(object):
 
         def set_field_description(self, field, description):
             if field in self.fields:
-                raise ValueError("Already have field %s in %s" %
-                                 (field, self.name))
+                raise ValueError(f"Already have field {field} in {self.name}")
             self.ensure_field(field)
             self.fields[field]["description"] = description
 
@@ -143,7 +142,7 @@ class LoggerDocco(object):
                 if m is not None:
                     docco.set_vehicles([x.strip() for x in m.group(1).split(',')])
                     continue
-                print("Unknown field (%s)" % str(line))
+                print(f"Unknown field ({str(line)})")
                 sys.exit(1)
 
     def parse_files(self):
@@ -186,7 +185,7 @@ if __name__ == '__main__':
     s = LoggerDocco(args.vehicle)
 
     if args.vehicle not in s.vehicle_map:
-        print("Invalid vehicle (choose from: %s)" % str(s.vehicle_map.keys()))
+        print(f"Invalid vehicle (choose from: {str(s.vehicle_map.keys())})")
         sys.exit(1)
 
     s.run()

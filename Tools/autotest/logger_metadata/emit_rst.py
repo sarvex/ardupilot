@@ -29,12 +29,12 @@ This is a list of log messages which may be present in logs produced and stored 
     def emit(self, doccos):
         self.start()
         for docco in doccos:
-            print('.. _%s:' % docco.name, file=self.fh)
+            print(f'.. _{docco.name}:', file=self.fh)
             print("", file=self.fh)
             desc = docco.description
             if desc is None:
                 desc = ""
-            line = '%s: %s' % (docco.name, desc)
+            line = f'{docco.name}: {desc}'
             print(line, file=self.fh)
             print("~" * len(line), file=self.fh)
 
@@ -75,17 +75,17 @@ This is a list of log messages which may be present in logs produced and stored 
             out_line = ""
             if rowheading is not None:
                 rowheading_line = rowheading_lines[i]
-                out_line += joiner + " " + rowheading_line + " " * (widths[0] - len(rowheading_line) - 1)
+                out_line += f"{joiner} {rowheading_line}" + " " * (
+                    widths[0] - len(rowheading_line) - 1
+                )
                 joiner = "#"
-            j = 0
-            for item in row_lines:
+            for j, item in enumerate(row_lines):
                 widthnum = j
                 if rowheading is not None:
                     widthnum += 1
                 line = item[i]
-                out_line += joiner + " " + line + " " * (widths[widthnum] - len(line) - 1)
+                out_line += f"{joiner} {line}" + " " * (widths[widthnum] - len(line) - 1)
                 joiner = "|"
-                j += 1
             out_line += "|"
             out_lines.append(out_line)
         return "\n".join(out_lines)
@@ -132,8 +132,7 @@ This is a list of log messages which may be present in logs produced and stored 
             if rowheadings is not None:
                 values_to_check.append(all_rowheadings[rownum])
             values_to_check.extend(row[:])
-            colnum = 0
-            for value in values_to_check:
+            for colnum, value in enumerate(values_to_check):
                 height = len(value.split("\n"))
                 if height > heights[rownum]:
                     heights[rownum] = height
@@ -141,7 +140,6 @@ This is a list of log messages which may be present in logs produced and stored 
                 width = longest_line + 2  # +2 for leading/trailing ws
                 if width > widths[colnum]:
                     widths[colnum] = width
-                colnum += 1
         return (widths, heights)
 
     def tablify(self, rows, headings=None, rowheadings=None):

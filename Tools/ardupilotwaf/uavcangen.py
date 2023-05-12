@@ -22,19 +22,22 @@ class uavcangen(Task.Task):
         src = self.env.get_flat('SRC')
         dsdlc = self.env.get_flat("DSDL_COMPILER")
 
-        ret = self.exec_command(['{}'.format(python),
-                                 '{}'.format(dsdlc),
-                                 '-O{}'.format(out)] + [x.abspath() for x in self.inputs])
+        ret = self.exec_command(
+            (
+                [f'{python}', f'{dsdlc}', f'-O{out}']
+                + [x.abspath() for x in self.inputs]
+            )
+        )
 
         if ret != 0:
             # ignore if there was a signal to the interpreter rather
             # than a real error in the script. Some environments use a
             # signed and some an unsigned return for this
             if ret > 128 or ret < 0:
-                Logs.warn('uavcangen crashed with code: {}'.format(ret))
+                Logs.warn(f'uavcangen crashed with code: {ret}')
                 ret = 0
             else:
-                Logs.error('uavcangen returned {} error code'.format(ret))
+                Logs.error(f'uavcangen returned {ret} error code')
         return ret
 
     def post_run(self):
@@ -73,4 +76,4 @@ def configure(cfg):
 
     env = cfg.env
     env.DSDL_COMPILER_DIR = cfg.srcnode.make_node('modules/uavcan/libuavcan/dsdl_compiler').abspath()
-    env.DSDL_COMPILER = env.DSDL_COMPILER_DIR + '/libuavcan_dsdlc'
+    env.DSDL_COMPILER = f'{env.DSDL_COMPILER_DIR}/libuavcan_dsdlc'

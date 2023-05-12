@@ -22,12 +22,12 @@ class TestIMUMatch(Test):
         self.result = TestResult()
         self.result.status = TestResult.StatusType.GOOD
 
-        if ("IMU" in logdata.channels) and (not "IMU2" in logdata.channels):
+        if "IMU" in logdata.channels and "IMU2" not in logdata.channels:
             self.result.status = TestResult.StatusType.NA
             self.result.statusMessage = "No IMU2"
             return
 
-        if (not "IMU" in logdata.channels) or (not "IMU2" in logdata.channels):
+        if "IMU" not in logdata.channels:
             self.result.status = TestResult.StatusType.UNKNOWN
             self.result.statusMessage = "No IMU log data"
             return
@@ -35,11 +35,14 @@ class TestIMUMatch(Test):
         imu1 = logdata.channels["IMU"]
         imu2 = logdata.channels["IMU2"]
 
-        timeLabel = None
-        for i in 'TimeMS','TimeUS','Time':
-            if i in logdata.channels["GPS"]:
-                timeLabel = i
-                break
+        timeLabel = next(
+            (
+                i
+                for i in ('TimeMS', 'TimeUS', 'Time')
+                if i in logdata.channels["GPS"]
+            ),
+            None,
+        )
         imu1_timems = imu1[timeLabel].listData
         imu1_accx = imu1["AccX"].listData
         imu1_accy = imu1["AccY"].listData
@@ -50,19 +53,25 @@ class TestIMUMatch(Test):
         imu2_accy = imu2["AccY"].listData
         imu2_accz = imu2["AccZ"].listData
 
-        imu_multiplier = 1.0E-3
-        if timeLabel == 'TimeUS':
-            imu_multiplier = 1.0E-6
-
-        imu1 = []
-        imu2 = []
-
-        for i in range(len(imu1_timems)):
-            imu1.append({ 't': imu1_timems[i][1]*imu_multiplier, 'x': imu1_accx[i][1], 'y': imu1_accy[i][1], 'z': imu1_accz[i][1]})
-
-        for i in range(len(imu2_timems)):
-            imu2.append({ 't': imu2_timems[i][1]*imu_multiplier, 'x': imu2_accx[i][1], 'y': imu2_accy[i][1], 'z': imu2_accz[i][1]})
-
+        imu_multiplier = 1.0E-6 if timeLabel == 'TimeUS' else 1.0E-3
+        imu1 = [
+            {
+                't': imu1_timems[i][1] * imu_multiplier,
+                'x': imu1_accx[i][1],
+                'y': imu1_accy[i][1],
+                'z': imu1_accz[i][1],
+            }
+            for i in range(len(imu1_timems))
+        ]
+        imu2 = [
+            {
+                't': imu2_timems[i][1] * imu_multiplier,
+                'x': imu2_accx[i][1],
+                'y': imu2_accy[i][1],
+                'z': imu2_accz[i][1],
+            }
+            for i in range(len(imu2_timems))
+        ]
         imu1.sort(key=lambda x: x['t'])
         imu2.sort(key=lambda x: x['t'])
 

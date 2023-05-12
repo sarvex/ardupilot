@@ -54,7 +54,7 @@ class Builder():
         if self.autotest:
             return self.autotest_build
         if self.target_binary:
-            return "%s:%s" % (self.board, self.target_binary)
+            return f"{self.board}:{self.target_binary}"
         print("Bad config")
         sys.exit(1)
 
@@ -62,7 +62,7 @@ class Builder():
         return self.reverse_deps.get(var, [])
 
     def progress(self, string):
-        print("BWFD: %s" % string)
+        print(f"BWFD: {string}")
 
     def get_config_variables(self):
         ret = []
@@ -73,17 +73,16 @@ class Builder():
                 match = re.match(r, line)
                 if match is None:
                     continue
-                if match.group(1) in ("ENABLE", "DISABLE",
-                                      "!HAL_MINIMIZE_FEATURES"):
+                if match[1] in ("ENABLE", "DISABLE", "!HAL_MINIMIZE_FEATURES"):
                     continue
-                if match.group(1) in self.blacklist_options:
-                    print("Skipping (%s)" % match.group(1))
+                if match[1] in self.blacklist_options:
+                    print(f"Skipping ({match[1]})")
                     continue
-                ret.append((match.group(1), match.group(2)))
+                ret.append((match[1], match[2]))
         return set(ret)
 
     def disable_option_in_config(self, var):
-        tmpfile = util.reltopdir(self.config) + ".tmp"
+        tmpfile = f"{util.reltopdir(self.config)}.tmp"
         shutil.move(self.config, tmpfile)
         with open(self.config, 'w+') as out_fd:
             with open(util.reltopdir(tmpfile)) as fd:
@@ -92,8 +91,7 @@ class Builder():
                     regex = ' *# *define +%s\s+(ENABLED|DISABLED|!HAL_MINIMIZE_FEATURES)' % (var[0],)
                     match = re.match(regex, line)
                     if match is not None:
-                        if (match.group(1) in ["ENABLED",
-                                               "!HAL_MINIMIZE_FEATURES"]):
+                        if match[1] in ["ENABLED", "!HAL_MINIMIZE_FEATURES"]:
                             fnoo = "DISABLED"
                         else:
                             fnoo = "ENABLED"
@@ -101,8 +99,8 @@ class Builder():
 
                         line = "#define %s %s\n" % (var[0], fnoo)
                     out_fd.write(line)
-            # turn dependencies on or off:
-        tmpfile = util.reltopdir(self.config) + ".tmp-deps"
+                # turn dependencies on or off:
+        tmpfile = f"{util.reltopdir(self.config)}.tmp-deps"
         shutil.move(self.config, tmpfile)
         with open(self.config, 'w+') as out_fd:
             with open(util.reltopdir(tmpfile)) as fd:
@@ -112,16 +110,12 @@ class Builder():
                         regex = ' *# *define +%s\s+(ENABLED|DISABLED|!HAL_MINIMIZE_FEATURES)' % thing
                         match = re.match(regex, line)
                         if match is not None:
-                            if did_enable:
-                                fnoo = "ENABLED"
-                            else:
-                                fnoo = "DISABLED"
-
+                            fnoo = "ENABLED" if did_enable else "DISABLED"
                             line = "#define %s %s\n" % (thing, fnoo)
                     out_fd.write(line)
 
     def backup_config_filepath(self):
-        return util.reltopdir(self.config) + ".backup"
+        return f"{util.reltopdir(self.config)}.backup"
 
     def backup_config(self):
         shutil.copy(self.config, self.backup_config_filepath())
@@ -145,10 +139,7 @@ class Builder():
             ret = util.run_cmd(["./waf", "build", "--target", self.target_binary])
         except subprocess.CalledProcessError:
             return False
-        if ret != 0:
-            return False
-
-        return True
+        return ret == 0
 
     def build_works_autotest(self):
         autotest = util.reltopdir("Tools/autotest/autotest.py")
@@ -159,26 +150,26 @@ class Builder():
         return ret == 0
 
     def run(self):
-        self.progress("Doing: %s" % (self.autotest_build,))
+        self.progress(f"Doing: {self.autotest_build}")
         self.backup_config()
         successes = []
         failures = []
         for var in self.get_config_variables():
-            print("var: %s" % str(var))
+            print(f"var: {str(var)}")
             self.disable_option_in_config(var)
             if self.build_works():
-                self.progress("%s OK" % var[0])
+                self.progress(f"{var[0]} OK")
                 successes.append(var[0])
             else:
-                self.progress("%s BAD" % var[0])
+                self.progress(f"{var[0]} BAD")
                 failures.append(var[0])
             self.restore_config()
 
         self.successes = successes
         self.failures = failures
 
-        self.progress("Successes: %s" % str(successes))
-        self.progress("Failures: %s" % str(failures))
+        self.progress(f"Successes: {successes}")
+        self.progress(f"Failures: {failures}")
 
 
 class BuilderCopter(Builder):
@@ -187,10 +178,10 @@ class BuilderCopter(Builder):
         r = '//#define ([A-Z_]+)\s+(ENABLED|DISABLED!HAL_MINIMIZE_FEATURES)'
         with open(util.reltopdir(self.config)) as fd:
             for line in fd:
-                print("line: %s" % line)
+                print(f"line: {line}")
                 match = re.match(r, line)
                 if match is not None:
-                    ret.append(match.group(1))
+                    ret.append(match[1])
         return ret
 
 
@@ -290,6 +281,6 @@ for spec in specs:
 
 print("")
 for builder in builders:
-    print("Builder: %s" % builder.description())
+    print(f"Builder: {builder.description()}")
 #    print("  Successes: %s" % builder.successes)
-    print("   Failures: %s" % builder.failures)
+    print(f"   Failures: {builder.failures}")

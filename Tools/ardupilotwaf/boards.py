@@ -13,21 +13,21 @@ _board_classes = {}
 _board = None
 
 class BoardMeta(type):
-    def __init__(cls, name, bases, dct):
-        super(BoardMeta, cls).__init__(name, bases, dct)
+    def __init__(self, name, bases, dct):
+        super(BoardMeta, self).__init__(name, bases, dct)
 
-        if 'abstract' not in cls.__dict__:
-            cls.abstract = False
-        if cls.abstract:
+        if 'abstract' not in self.__dict__:
+            self.abstract = False
+        if self.abstract:
             return
 
-        if not hasattr(cls, 'toolchain'):
-            cls.toolchain = 'native'
+        if not hasattr(self, 'toolchain'):
+            self.toolchain = 'native'
 
-        board_name = getattr(cls, 'name', name)
+        board_name = getattr(self, 'name', name)
         if board_name in _board_classes:
-            raise Exception('board named %s already exists' % board_name)
-        _board_classes[board_name] = cls
+            raise Exception(f'board named {board_name} already exists')
+        _board_classes[board_name] = self
 
 class Board:
     abstract = True
@@ -67,7 +67,7 @@ class Board:
         # allow GCS disable for AP_DAL example
         if cfg.options.no_gcs:
             env.CXXFLAGS += ['-DHAL_NO_GCS=1']
-            
+
         d = env.get_merged_dict()
         # Always prepend so that arguments passed in the command line get
         # the priority.
@@ -78,7 +78,7 @@ class Board:
                 keys = list(val.keys())
                 if not isinstance(val, OrderedDict):
                     keys.sort()
-                val = ['%s=%s' % (vk, val[vk]) for vk in keys]
+                val = [f'{vk}={val[vk]}' for vk in keys]
 
             if k in cfg.env and isinstance(cfg.env[k], list):
                 cfg.env.prepend_value(k, val)
@@ -135,7 +135,10 @@ class Board:
                 AP_SCRIPTING_CHECKS = 1,
                 )
 
-        cfg.msg("CXX Compiler", "%s %s"  % (cfg.env.COMPILER_CXX, ".".join(cfg.env.CC_VERSION)))
+        cfg.msg(
+            "CXX Compiler",
+            f'{cfg.env.COMPILER_CXX} {".".join(cfg.env.CC_VERSION)}',
+        )
 
         if 'clang' in cfg.env.COMPILER_CC:
             env.CFLAGS += [
@@ -332,14 +335,14 @@ class Board:
 
         if cfg.options.postype_single:
             env.CXXFLAGS += ['-DHAL_WITH_POSTYPE_DOUBLE=0']
-            
+
         if cfg.options.osd or cfg.options.osd_fonts:
             env.CXXFLAGS += ['-DOSD_ENABLED=1', '-DHAL_MSP_ENABLED=1']
 
         if cfg.options.osd_fonts:
             for f in os.listdir('libraries/AP_OSD/fonts'):
                 if fnmatch.fnmatch(f, "font*bin"):
-                    env.ROMFS_FILES += [(f,'libraries/AP_OSD/fonts/'+f)]
+                    env.ROMFS_FILES += [(f, f'libraries/AP_OSD/fonts/{f}')]
             
     def pre_build(self, bld):
         '''pre-build hook that gets called before dynamic sources'''
@@ -419,7 +422,7 @@ Please use a replacement build as follows:
 ''' % ctx.env.BOARD)
 
         boards = _board_classes.keys()
-        if not ctx.env.BOARD in boards:
+        if ctx.env.BOARD not in boards:
             ctx.fatal("Invalid board '%s': choices are %s" % (ctx.env.BOARD, ', '.join(sorted(boards, key=str.lower))))
         _board = _board_classes[ctx.env.BOARD]()
     return _board
@@ -431,10 +434,7 @@ Please use a replacement build as follows:
 class sitl(Board):
 
     def __init__(self):
-        if Utils.unversioned_sys_platform().startswith("linux"):
-            self.with_can = True
-        else:
-            self.with_can = False
+        self.with_can = bool(Utils.unversioned_sys_platform().startswith("linux"))
 
     def configure_env(self, cfg, env):
         super(sitl, self).configure_env(cfg, env)
@@ -485,9 +485,8 @@ class sitl(Board):
                 'SITL',
             ]
 
-        if cfg.options.enable_sfml:
-            if not cfg.check_SFML(env):
-                cfg.fatal("Failed to find SFML libraries")
+        if cfg.options.enable_sfml and not cfg.check_SFML(env):
+            cfg.fatal("Failed to find SFML libraries")
 
         if cfg.options.enable_sfml_joystick:
             if not cfg.check_SFML(env):
@@ -498,11 +497,11 @@ class sitl(Board):
             env.CXXFLAGS += ['-DWITH_SITL_OSD','-DOSD_ENABLED=1']
             for f in os.listdir('libraries/AP_OSD/fonts'):
                 if fnmatch.fnmatch(f, "font*bin"):
-                    env.ROMFS_FILES += [(f,'libraries/AP_OSD/fonts/'+f)]
+                    env.ROMFS_FILES += [(f, f'libraries/AP_OSD/fonts/{f}')]
 
         for f in os.listdir('Tools/autotest/models'):
             if fnmatch.fnmatch(f, "*.json") or fnmatch.fnmatch(f, "*.parm"):
-                env.ROMFS_FILES += [('models/'+f,'Tools/autotest/models/'+f)]
+                env.ROMFS_FILES += [(f'models/{f}', f'Tools/autotest/models/{f}')]
 
         # include locations.txt so SITL on windows can lookup by name
         env.ROMFS_FILES += [('locations.txt','Tools/autotest/locations.txt')]
@@ -511,7 +510,7 @@ class sitl(Board):
         if os.path.exists('ROMFS/scripts'):
             for f in os.listdir('ROMFS/scripts'):
                 if fnmatch.fnmatch(f, "*.lua"):
-                    env.ROMFS_FILES += [('scripts/'+f,'ROMFS/scripts/'+f)]
+                    env.ROMFS_FILES += [(f'scripts/{f}', f'ROMFS/scripts/{f}')]
 
         if len(env.ROMFS_FILES) > 0:
             env.CXXFLAGS += ['-DHAL_HAVE_AP_ROMFS_EMBEDDED_H']
@@ -540,9 +539,10 @@ class sitl(Board):
             env.CXXFLAGS += [
                 '-fno-slp-vectorize' # compiler bug when trying to use SLP
             ]
-        
+
         def srcpath(path):
             return cfg.srcnode.make_node(path).abspath()
+
         env.SRCROOT = srcpath('')
 
 class sitl_periph_gps(sitl):
@@ -599,7 +599,7 @@ class chibios(Board):
         ]
 
         # make board name available for USB IDs
-        env.CHIBIOS_BOARD_NAME = 'HAL_BOARD_NAME="%s"' % self.name
+        env.CHIBIOS_BOARD_NAME = f'HAL_BOARD_NAME="{self.name}"'
         env.CFLAGS += cfg.env.CPU_FLAGS + [
             '-Wno-cast-align',
             '-Wlogical-op',
@@ -636,10 +636,10 @@ class chibios(Board):
             '-mthumb',
             '--specs=nano.specs',
             '--specs=nosys.specs',
-            '-DCHIBIOS_BOARD_NAME="%s"' % self.name,
+            f'-DCHIBIOS_BOARD_NAME="{self.name}"',
             '-D__USE_CMSIS',
             '-Werror=deprecated-declarations',
-            '-DNDEBUG=1'
+            '-DNDEBUG=1',
         ]
         if not cfg.options.Werror:
             env.CFLAGS += [
@@ -681,10 +681,10 @@ class chibios(Board):
             '-mthumb',
             '--specs=nano.specs',
             '--specs=nosys.specs',
-            '-L%s' % env.BUILDROOT,
-            '-L%s' % cfg.srcnode.make_node('modules/ChibiOS/os/common/startup/ARMCMx/compilers/GCC/ld/').abspath(),
-            '-L%s' % cfg.srcnode.make_node('libraries/AP_HAL_ChibiOS/hwdef/common/').abspath(),
-            '-Wl,--gc-sections,--no-warn-mismatch,--library-path=/ld,--script=ldscript.ld,--defsym=__process_stack_size__=%s,--defsym=__main_stack_size__=%s' % (cfg.env.PROCESS_STACK, cfg.env.MAIN_STACK)
+            f'-L{env.BUILDROOT}',
+            f"-L{cfg.srcnode.make_node('modules/ChibiOS/os/common/startup/ARMCMx/compilers/GCC/ld/').abspath()}",
+            f"-L{cfg.srcnode.make_node('libraries/AP_HAL_ChibiOS/hwdef/common/').abspath()}",
+            f'-Wl,--gc-sections,--no-warn-mismatch,--library-path=/ld,--script=ldscript.ld,--defsym=__process_stack_size__={cfg.env.PROCESS_STACK},--defsym=__main_stack_size__={cfg.env.MAIN_STACK}',
         ]
 
         if cfg.env.DEBUG:
@@ -710,7 +710,7 @@ class chibios(Board):
             env.CXXFLAGS += [ '-DHAL_CHIBIOS_ENABLE_MALLOC_GUARD' ]
         else:
             cfg.msg("Enabling malloc guard", "no")
-            
+
         if cfg.env.ENABLE_STATS:
             cfg.msg("Enabling ChibiOS thread statistics", "yes")
             env.CFLAGS += [ '-DHAL_ENABLE_THREAD_STATISTICS' ]
@@ -760,8 +760,7 @@ class chibios(Board):
         '''pre-build hook that gets called before dynamic sources'''
         from waflib.Context import load_tool
         module = load_tool('chibios', [], with_sys_path=True)
-        fun = getattr(module, 'pre_build', None)
-        if fun:
+        if fun := getattr(module, 'pre_build', None):
             fun(bld)
         super(chibios, self).pre_build(bld)
 

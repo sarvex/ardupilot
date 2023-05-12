@@ -17,11 +17,7 @@ import pexpect
 
 from pymavlink.rotmat import Vector3, Matrix3
 
-if (sys.version_info[0] >= 3):
-    ENCODING = 'ascii'
-else:
-    ENCODING = None
-
+ENCODING = 'ascii' if (sys.version_info[0] >= 3) else None
 RADIUS_OF_EARTH = 6378100.0  # in meters
 
 
@@ -70,7 +66,7 @@ def run_cmd(cmd, directory=".", show=True, output=False, checkfail=True):
         cmd = [cmd]
         shell = True
     if show:
-        print("Running: (%s) in (%s)" % (cmd_as_shell(cmd), directory,))
+        print(f"Running: ({cmd_as_shell(cmd)}) in ({directory})")
     if output:
         return subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE, cwd=directory).communicate()[0]
     elif checkfail:
@@ -89,7 +85,7 @@ def rmfile(path):
 
 def deltree(path):
     """Delete a tree of files."""
-    run_cmd('rm -rf %s' % path)
+    run_cmd(f'rm -rf {path}')
 
 
 def relwaf():
@@ -211,12 +207,11 @@ def pexpect_close(p):
     try:
         p.kill(signal.SIGTERM)
     except IOError as e:
-        print("Caught exception: %s" % str(e))
+        print(f"Caught exception: {str(e)}")
         ex = e
-        pass
     if ex is None:
         # give the process some time to go away
-        for i in range(20):
+        for _ in range(20):
             if not p.isalive():
                 break
             time.sleep(0.05)
@@ -249,19 +244,18 @@ def pexpect_drain(p):
 
 
 def cmd_as_shell(cmd):
-    return (" ".join(['"%s"' % x for x in cmd]))
+    return " ".join([f'"{x}"' for x in cmd])
 
 
 def make_safe_filename(text):
     """Return a version of text safe for use as a filename."""
     r = re.compile("([^a-zA-Z0-9_.+-])")
     text.replace('/', '-')
-    filename = r.sub(lambda m: str(hex(ord(str(m.group(1))))).upper(), text)
-    return filename
+    return r.sub(lambda m: hex(ord(str(m.group(1)))).upper(), text)
 
 
 def valgrind_log_filepath(binary, model):
-    return make_safe_filename('%s-%s-valgrind.log' % (os.path.basename(binary), model,))
+    return make_safe_filename(f'{os.path.basename(binary)}-{model}-valgrind.log')
 
 
 def kill_screen_gdb():
@@ -305,38 +299,36 @@ def start_SITL(binary,
         # unsurprisingly, fail on files created on that mountpoint.
         vgdb_prefix = os.path.join(tempfile.gettempdir(), "vgdb-pipe")
         log_file = valgrind_log_filepath(binary=binary, model=model)
-        cmd.extend([
-            'valgrind',
-            # adding this option allows valgrind to cope with the overload
-            # of operator new
-            "--soname-synonyms=somalloc=nouserintercepts",
-            '--vgdb-prefix=%s' % vgdb_prefix,
-            '-q',
-            '--log-file=%s' % log_file])
+        cmd.extend(
+            [
+                'valgrind',
+                "--soname-synonyms=somalloc=nouserintercepts",
+                f'--vgdb-prefix={vgdb_prefix}',
+                '-q',
+                f'--log-file={log_file}',
+            ]
+        )
     if gdbserver:
         cmd.extend(['gdbserver', 'localhost:3333'])
         if gdb:
-            # attach gdb to the gdbserver:
-            f = open("/tmp/x.gdb", "w")
-            f.write("target extended-remote localhost:3333\nc\n")
+            with open("/tmp/x.gdb", "w") as f:
+                f.write("target extended-remote localhost:3333\nc\n")
+                for breakpoint in breakpoints:
+                    f.write("b %s\n" % (breakpoint,))
+                if disable_breakpoints:
+                    f.write("disable\n")
+            run_cmd('screen -d -m -S ardupilot-gdbserver '
+                    'bash -c "gdb -x /tmp/x.gdb"')
+    elif gdb:
+        with open("/tmp/x.gdb", "w") as f:
+            f.write("set pagination off\n")
             for breakpoint in breakpoints:
                 f.write("b %s\n" % (breakpoint,))
             if disable_breakpoints:
                 f.write("disable\n")
-            f.close()
-            run_cmd('screen -d -m -S ardupilot-gdbserver '
-                    'bash -c "gdb -x /tmp/x.gdb"')
-    elif gdb:
-        f = open("/tmp/x.gdb", "w")
-        f.write("set pagination off\n")
-        for breakpoint in breakpoints:
-            f.write("b %s\n" % (breakpoint,))
-        if disable_breakpoints:
-            f.write("disable\n")
-        if not gdb_no_tui:
-            f.write("tui enable\n")
-        f.write("r\n")
-        f.close()
+            if not gdb_no_tui:
+                f.write("tui enable\n")
+            f.write("r\n")
         if sys.platform == "darwin" and os.getenv('DISPLAY'):
             cmd.extend(['gdb', '-x', '/tmp/x.gdb', '--args'])
         elif os.environ.get('DISPLAY'):
@@ -349,14 +341,13 @@ def start_SITL(binary,
                         '-S', 'ardupilot-gdb',
                         'gdb', '-x', '/tmp/x.gdb', binary, '--args'])
     elif lldb:
-        f = open("/tmp/x.lldb", "w")
-        for breakpoint in breakpoints:
-            f.write("b %s\n" % (breakpoint,))
-        if disable_breakpoints:
-            f.write("disable\n")
-        f.write("settings set target.process.stop-on-exec false\n")
-        f.write("process launch\n")
-        f.close()
+        with open("/tmp/x.lldb", "w") as f:
+            for breakpoint in breakpoints:
+                f.write("b %s\n" % (breakpoint,))
+            if disable_breakpoints:
+                f.write("disable\n")
+            f.write("settings set target.process.stop-on-exec false\n")
+            f.write("process launch\n")
         if sys.platform == "darwin" and os.getenv('DISPLAY'):
             cmd.extend(['lldb', '-s', '/tmp/x.lldb', '--'])
         elif os.environ.get('DISPLAY'):
@@ -395,8 +386,11 @@ def start_SITL(binary,
         child = None
         mydir = os.path.dirname(os.path.realpath(__file__))
         autotest_dir = os.path.realpath(os.path.join(mydir, '..'))
-        runme = [os.path.join(autotest_dir, "run_in_terminal_window.sh"), 'mactest']
-        runme.extend(cmd) 
+        runme = [
+            os.path.join(autotest_dir, "run_in_terminal_window.sh"),
+            'mactest',
+            *cmd,
+        ]
         print(runme)
         print(cmd)
         out = subprocess.Popen(runme, stdout=subprocess.PIPE).communicate()[0]
@@ -416,7 +410,7 @@ def start_SITL(binary,
         if len(tabs) > 0:
             windowID.append(tabs[0])
         else:
-            print("Cannot find %s process terminal" % binary)
+            print(f"Cannot find {binary} process terminal")
     elif gdb and not os.getenv('DISPLAY'):
         subprocess.Popen(cmd)
         atexit.register(kill_screen_gdb)
@@ -429,7 +423,7 @@ def start_SITL(binary,
                              encoding=ENCODING,
                              timeout=5)
     else:
-        print("Running: %s" % cmd_as_shell(cmd))
+        print(f"Running: {cmd_as_shell(cmd)}")
 
 
         first = cmd[0]
@@ -456,13 +450,13 @@ def mavproxy_cmd():
 
 def MAVProxy_version():
     '''return the current version of mavproxy as a tuple e.g. (1,8,8)'''
-    command = "%s --version" % mavproxy_cmd()
+    command = f"{mavproxy_cmd()} --version"
     output = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE).communicate()[0]
     output = output.decode('ascii')
     match = re.search("MAVProxy Version: ([0-9]+)[.]([0-9]+)[.]([0-9]+)", output)
     if match is None:
-        raise ValueError("Unable to determine MAVProxy version from (%s)" % output)
-    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        raise ValueError(f"Unable to determine MAVProxy version from ({output})")
+    return int(match[1]), int(match[2]), int(match[3])
 
 def start_MAVProxy_SITL(atype,
                         aircraft=None,
@@ -482,19 +476,18 @@ def start_MAVProxy_SITL(atype,
 
     import pexpect
     global close_list
-    cmd = []
-    cmd.append(mavproxy_cmd())
+    cmd = [mavproxy_cmd()]
     cmd.extend(['--master', master])
     if setup:
         cmd.append('--setup')
     if aircraft is None:
-        aircraft = 'test.%s' % atype
+        aircraft = f'test.{atype}'
     cmd.extend(['--aircraft', aircraft])
     cmd.extend(options)
     cmd.extend(['--default-modules', 'misc,terrain,wp,rally,fence,param,arm,mode,rc,cmdlong,output'])
 
-    print("PYTHONPATH: %s" % str(env['PYTHONPATH']))
-    print("Running: %s" % cmd_as_shell(cmd))
+    print(f"PYTHONPATH: {str(env['PYTHONPATH'])}")
+    print(f"Running: {cmd_as_shell(cmd)}")
 
     ret = pexpect.spawn(cmd[0], cmd[1:], logfile=logfile, encoding=ENCODING, timeout=pexpect_timeout, env=env)
     ret.delaybeforesend = 0
@@ -515,7 +508,7 @@ def expect_setup_callback(e, callback):
                 return ret
             except pexpect.TIMEOUT:
                 e.expect_user_callback(e)
-        print("Timed out looking for %s" % pattern)
+        print(f"Timed out looking for {pattern}")
         raise pexpect.TIMEOUT(timeout)
 
     e.expect_user_callback = callback
@@ -538,9 +531,8 @@ def mkdir_p(directory):
 
 def loadfile(fname):
     """Load a file as a string."""
-    f = open(fname, mode='r')
-    r = f.read()
-    f.close()
+    with open(fname, mode='r') as f:
+        r = f.read()
     return r
 
 
@@ -671,7 +663,9 @@ class Wind(object):
     def __init__(self, windstring, cross_section=0.1):
         a = windstring.split(',')
         if len(a) != 3:
-            raise RuntimeError("Expected wind in speed,direction,turbulance form, not %s" % windstring)
+            raise RuntimeError(
+                f"Expected wind in speed,direction,turbulance form, not {windstring}"
+            )
         self.speed      = float(a[0])  # m/s
         self.direction  = float(a[1])  # direction the wind is going in
         self.turbulance = float(a[2])  # turbulance factor (standard deviation)
@@ -724,11 +718,7 @@ class Wind(object):
         # Compute the angle between the object vector and wind vector by taking
         # the dot product and dividing by the magnitudes.
         d = w.length() * obj_speed
-        if d == 0:
-            alpha = 0
-        else:
-            alpha = acos((w * velocity) / d)
-
+        alpha = 0 if d == 0 else acos((w * velocity) / d)
         # Get the relative wind speed and angle from the object.  Note that the
         # relative wind speed includes the velocity of the object; i.e., there
         # is a headwind equivalent to the object's speed even if there is no
@@ -752,11 +742,7 @@ def apparent_wind(wind_sp, obj_speed, alpha):
     delta = wind_sp * cos(alpha)
     x = wind_sp**2 + obj_speed**2 + 2 * obj_speed * delta
     rel_speed = sqrt(x)
-    if rel_speed == 0:
-        beta = pi
-    else:
-        beta = acos((delta + obj_speed) / rel_speed)
-
+    beta = pi if rel_speed == 0 else acos((delta + obj_speed) / rel_speed)
     return (rel_speed, beta)
 
 
@@ -778,10 +764,7 @@ def acc(val, mag):
     """ Function to make the force vector.  relWindVec is the direction the apparent
     wind comes *from*.  We want to compute the accleration vector in the direction
     the wind blows to."""
-    if val == 0:
-        return mag
-    else:
-        return (val / abs(val)) * (0 - mag)
+    return mag if val == 0 else (val / abs(val)) * (0 - mag)
 
 
 def toVec(magnitude, angle):
@@ -794,10 +777,8 @@ def toVec(magnitude, angle):
 
 def constrain(value, minv, maxv):
     """Constrain a value to a range."""
-    if value < minv:
-        value = minv
-    if value > maxv:
-        value = maxv
+    value = max(value, minv)
+    value = min(value, maxv)
     return value
 
 def load_local_module(fname):

@@ -51,14 +51,14 @@ DO NOT EDIT
         pass
 
     def emit(self, g):
-        tag = '%s Parameters' % g.reference
+        tag = f'{g.reference} Parameters'
         t = '\n\n<h1>%s</h1>\n' % tag
 
         for param in g.params:
             if not hasattr(param, 'DisplayName') or not hasattr(param, 'Description'):
                 continue
             d = param.__dict__
-            tag = '%s (%s)' % (param.DisplayName, param.name)
+            tag = f'{param.DisplayName} ({param.name})'
             t += '\n\n<h2>%s</h2>' % tag
             if d.get('User', None) == 'Advanced':
                 t += '<em>Note: This parameter is for advanced users</em><br>'
@@ -73,7 +73,7 @@ DO NOT EDIT
                         for value in values:
                             v = value.split(':')
                             if len(v) != 2:
-                                raise ValueError("Bad value (%s)" % v)
+                                raise ValueError(f"Bad value ({v})")
                             t += "<tr><td>%s</td><td>%s</td></tr>\n" % (v[0], v[1])
                         t += "</table>\n"
                     elif field == 'Units':

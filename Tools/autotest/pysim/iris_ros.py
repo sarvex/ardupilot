@@ -57,7 +57,7 @@ class IrisRos(Aircraft):
             }
 
         rospy.init_node('ArduPilot', anonymous=True)
-        for topic in topics.keys():
+        for topic in topics:
             (callback, msgtype) = topics[topic]
             rospy.Subscriber(topic, msgtype, callback)
 
@@ -101,14 +101,12 @@ class IrisRos(Aircraft):
         # create motor speed message
         msg = mav_msgs.CommandMotorSpeed()
         msg.header.stamp = rospy.get_rostime()
-        motor_speed = []
-        for i in range(len(actuators)):
-            motor_speed.append(actuators[i]*self.max_rpm)
+        motor_speed = [actuators[i]*self.max_rpm for i in range(len(actuators))]
         msg.motor_speed = motor_speed
 
         self.last_time = self.time_now
 
         self.motor_pub.publish(msg)
-        
+
         # update lat/lon/altitude
         self.update_position()

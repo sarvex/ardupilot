@@ -47,36 +47,35 @@ class MDEmit(Emit):
 
     def emit(self, g):
         nparam = False # Flag indicating this is a parameter group with redundant information (ie RCn_, SERVOn_)
-        
+
         if g.reference == 'ArduSub':
             self.blacklist = sub_blacklist
-        
+
         if self.blacklist is not None and g.reference in self.blacklist:
             return
-        
+
         pname = g.reference
-        
+
         # Check to see this is a parameter group with redundant information
         rename = re.sub('\d+', 'n', g.reference)
         if rename in nparams:
             if rename in self.nparams:
                 return
-            else:
-                self.nparams.append(rename)
-                pname = rename
-                nparam = True
-        
+            self.nparams.append(rename)
+            pname = rename
+            nparam = True
+
         # Markdown!
-        tag = '%s Parameters' % pname
+        tag = f'{pname} Parameters'
         tag = tag.replace('_', '')
         link = tag.replace(' ', '-')
-        
+
         # Add group to navigation header for BlueRobotics' ArduSub docs
         if os.getenv('BRDOC') is not None:
             self.header += "\n- %s: %s" % (link.split('-')[0],link.lower())
-        
+
         t = '\n\n# %s' % tag
-        
+
         for param in g.params:
             if not hasattr(param, 'DisplayName') or not hasattr(param, 'Description'):
                 continue
@@ -84,12 +83,12 @@ class MDEmit(Emit):
             name = param.name.split(':')[-1]
             if nparam:
                 name = re.sub('\d+', 'n', name, 1)
-            tag = '%s: %s' % (name, param.DisplayName)
+            tag = f'{name}: {param.DisplayName}'
             t += '\n\n## %s' % tag
             if d.get('User', None) == 'Advanced':
                 t += '\n\n*Note: This parameter is for advanced users*'
             t += "\n\n%s" % param.Description
-            
+
             for field in param.__dict__.keys():
                 if field not in ['name', 'DisplayName', 'Description', 'User'] and field in known_param_fields:
                     if field == 'Values' and Emit.prog_values_field.match(param.__dict__[field]):
@@ -99,7 +98,7 @@ class MDEmit(Emit):
                         for value in values:
                             v = value.split(':')
                             if len(v) != 2:
-                                raise ValueError("Bad value (%s)" % v)
+                                raise ValueError(f"Bad value ({v})")
                             t += "\n|%s|%s|" % (v[0], v[1])
                     else:
                         t += "\n\n- %s: %s" % (field, param.__dict__[field])

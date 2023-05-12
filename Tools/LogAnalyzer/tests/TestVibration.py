@@ -29,7 +29,7 @@ class TestVibration(Test):
         aimRangeWarnZ  = 2.0  # gravity +/- aim range
         aimRangeFailZ  = 5.0  # gravity +/- aim range
 
-        if not "IMU" in logdata.channels:
+        if "IMU" not in logdata.channels:
             self.result.status = TestResult.StatusType.UNKNOWN
             self.result.statusMessage = "No IMU log data"
             return

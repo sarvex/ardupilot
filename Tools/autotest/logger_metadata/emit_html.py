@@ -32,12 +32,11 @@ DO NOT EDIT
     def emit(self, doccos):
         self.start()
         for docco in doccos:
-            print('    <h1>%s</h1>' % docco.name, file=self.fh)
+            print(f'    <h1>{docco.name}</h1>', file=self.fh)
             if docco.url is not None:
-                print('        <a href="%s">More information</a>' % docco.url, file=self.fh)
+                print(f'        <a href="{docco.url}">More information</a>', file=self.fh)
             if docco.description is not None:
-                print('        <h2>%s</h2>' %
-                      docco.description, file=self.fh)
+                print(f'        <h2>{docco.description}</h2>', file=self.fh)
             print('        <table>', file=self.fh)
             print("        <tr><th>FieldName</th><th>Description</th><tr>",
                   file=self.fh)
@@ -46,8 +45,7 @@ DO NOT EDIT
                     fdesc = docco.fields[f]["description"]
                 else:
                     fdesc = ""
-                print('        <tr><td>%s</td><td>%s</td></tr>' % (f, fdesc),
-                      file=self.fh)
+                print(f'        <tr><td>{f}</td><td>{fdesc}</td></tr>', file=self.fh)
 #                if "bits" in docco.fields[f]:
 #                    print('                <bits>%s</bits>' %
 #                          docco.fields[f]["bits"], file=self.fh)

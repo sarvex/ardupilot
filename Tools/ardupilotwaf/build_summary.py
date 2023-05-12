@@ -52,20 +52,12 @@ header_text = {
 }
 
 def text(label, text=''):
-    text = text.strip()
-    if text:
-        Logs.info('%s%s%s%s%s' % (
-            Logs.colors.NORMAL,
-            Logs.colors.BOLD,
-            label,
-            Logs.colors.NORMAL,
-            text))
+    if text := text.strip():
+        Logs.info(
+            f'{Logs.colors.NORMAL}{Logs.colors.BOLD}{label}{Logs.colors.NORMAL}{text}'
+        )
     else:
-        Logs.info('%s%s%s' % (
-            Logs.colors.NORMAL,
-            Logs.colors.BOLD,
-            label
-        ))
+        Logs.info(f'{Logs.colors.NORMAL}{Logs.colors.BOLD}{label}')
 
 def print_table(summary_data_list, header):
     max_widths = []
@@ -217,7 +209,7 @@ def configure(cfg):
     size_name = 'size'
 
     if cfg.env.TOOLCHAIN != 'native':
-        size_name = cfg.env.TOOLCHAIN + '-' + size_name
+        size_name = f'{cfg.env.TOOLCHAIN}-{size_name}'
 
     cfg.find_program(size_name, var='SIZE', mandatory=False)
 

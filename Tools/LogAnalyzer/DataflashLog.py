@@ -47,7 +47,7 @@ class Format(object):
             labels = self.labels[:],
         )
 
-        fieldtypes = [i for i in self.types]
+        fieldtypes = list(self.types)
         fieldlabels = self.labels[:]
 
         # field access
@@ -56,15 +56,21 @@ class Format(object):
                 # extra scope for variable sanity
                 # scaling via _NAME and def NAME(self): return self._NAME / SCALE
                 propertyname = name
-                attributename = '_' + name
+                attributename = f'_{name}'
                 p = property(lambda x:getattr(x, attributename),
                              lambda x, v:setattr(x,attributename, Format.trycastToFormatType(v,format)))
                 members[propertyname] = p
                 members[attributename] = None
+
             createproperty(label, _type)
 
         # repr shows all values but the header
-        members['__repr__'] = lambda x: "<{cls} {data}>".format(cls=x.__class__.__name__, data = ' '.join(["{}:{}".format(k,getattr(x,'_'+k)) for k in x.labels]))
+        members['__repr__'] = lambda x: "<{cls} {data}>".format(
+            cls=x.__class__.__name__,
+            data=' '.join(
+                ["{}:{}".format(k, getattr(x, f'_{k}')) for k in x.labels]
+            ),
+        )
 
         def init(a, *x):
             if len(x) != len(a.labels):
@@ -81,7 +87,7 @@ class Format(object):
 
         # finally, create the class
         cls = type(\
-            'Log__{:s}'.format(self.name),
+                'Log__{:s}'.format(self.name),
             (object,),
             members
         )
@@ -143,7 +149,12 @@ class BinaryFormat(ctypes.LittleEndianStructure):
         ('labels', ctypes.c_char * 64),
     ]
     def __repr__(self):
-        return "<{cls} {data}>".format(cls=self.__class__.__name__, data = ' '.join(["{}:{}".format(k,getattr(self,k)) for (k,_) in self._fields_[1:]]))
+        return "<{cls} {data}>".format(
+            cls=self.__class__.__name__,
+            data=' '.join(
+                [f"{k}:{getattr(self, k)}" for (k, _) in self._fields_[1:]]
+            ),
+        )
 
     def to_class(self):
         labels = self.labels.decode('ascii') if self.labels else ""
@@ -155,7 +166,7 @@ class BinaryFormat(ctypes.LittleEndianStructure):
             _pack_ = True)
 
         if type(self.types[0]) == str:
-            fieldtypes = [i for i in self.types]
+            fieldtypes = list(self.types)
         else:
             fieldtypes = [chr(i) for i in self.types]
         fieldlabels = members["labels"]
@@ -171,22 +182,24 @@ class BinaryFormat(ctypes.LittleEndianStructure):
                 # extra scope for variable sanity
                 # scaling via _NAME and def NAME(self): return self._NAME / SCALE
                 propertyname = name
-                attributename = '_' + name
+                attributename = f'_{name}'
                 scale = BinaryFormat.FIELD_SCALE.get(format, None)
                 def get_message_attribute(x):
                     ret = getattr(x, attributename)
-                    if str(format) in ['Z','n','N']:
+                    if str(format) in {'Z', 'n', 'N'}:
                         ret = ret.decode('ascii')
                     return ret
+
                 p = property(get_message_attribute)
                 if scale is not None:
-                    p = property(lambda x:getattr(x, attributename) / scale) 
+                    p = property(lambda x:getattr(x, attributename) / scale)
                 members[propertyname] = p
                 try:
                     fields.append((attributename, BinaryFormat.FIELD_FORMAT[format]))
                 except KeyError:
                     print('ERROR: Failed to add FMT type: {}, with format: {}'.format(attributename, format))
                     raise
+
             createproperty(label, _type)
         members['_fields_'] = fields
 
@@ -194,11 +207,7 @@ class BinaryFormat(ctypes.LittleEndianStructure):
         members['__repr__'] = lambda x: "<{cls} {data}>".format(cls=x.__class__.__name__, data = ' '.join(["{}:{}".format(k,getattr(x,k)) for k in x.labels]))
 
         # finally, create the class
-        cls = type(\
-            'Log__%s' % self.name,
-            (ctypes.LittleEndianStructure,),
-            members
-        )
+        cls = type(f'Log__{self.name}', (ctypes.LittleEndianStructure,), members)
 
         if ctypes.sizeof(cls) != cls.SIZE:
             print("size mismatch for {} expected {} got {}".format(cls, ctypes.sizeof(cls), cls.SIZE), file=sys.stderr)
@@ -342,15 +351,16 @@ class DataflashLogHelper:
     @staticmethod
     def getTimeAtLine(logdata, lineNumber):
         '''returns the nearest GPS timestamp in milliseconds after the given line number'''
-        if not "GPS" in logdata.channels:
+        if "GPS" not in logdata.channels:
             raise Exception("no GPS log data found")
-        # older logs use 'TIme', newer logs use 'TimeMS'
-        # even newer logs use TimeUS
-        timeLabel = None
-        for possible in "TimeMS", "Time", "TimeUS":
-            if possible in logdata.channels["GPS"]:
-                timeLabel = possible
-                break
+        timeLabel = next(
+            (
+                possible
+                for possible in ("TimeMS", "Time", "TimeUS")
+                if possible in logdata.channels["GPS"]
+            ),
+            None,
+        )
         if timeLabel is None:
             raise Exception("Unable to get time label")
         while lineNumber <= logdata.lineCount:
@@ -358,7 +368,9 @@ class DataflashLogHelper:
                 return logdata.channels["GPS"][timeLabel].dictData[lineNumber]
             lineNumber = lineNumber + 1
 
-        sys.stderr.write("didn't find GPS data for " + str(lineNumber) + " - using maxtime\n")
+        sys.stderr.write(
+            f"didn't find GPS data for {str(lineNumber)}" + " - using maxtime\n"
+        )
         return logdata.channels["GPS"][timeLabel].max()
 
     @staticmethod
@@ -397,10 +409,7 @@ class DataflashLogHelper:
     @staticmethod
     def isLogEmpty(logdata):
         '''returns an human readable error string if the log is essentially empty, otherwise returns None'''
-        # naive check for now, see if the throttle output was ever above 20%
-        throttleThreshold = 20
-        if logdata.vehicleType == VehicleType.Copter:
-            throttleThreshold = 200 # copter uses 0-1000, plane+rover use 0-100
+        throttleThreshold = 200 if logdata.vehicleType == VehicleType.Copter else 20
         if "CTUN" in logdata.channels:
             try:
                 maxThrottle = logdata.channels["CTUN"]["ThrOut"].max()
@@ -449,9 +458,7 @@ class DataflashLog(object):
         '''returns quad/hex/octo/tradheli if this is a copter log'''
         if self.vehicleType != VehicleType.Copter:
             return None
-        motLabels = []
-        if "MOT" in self.formats: # not listed in PX4 log header for some reason?
-            motLabels = self.formats["MOT"].labels
+        motLabels = self.formats["MOT"].labels if "MOT" in self.formats else []
         if "GGain" in motLabels:
             return "tradheli"
         elif len(motLabels) == 4:
@@ -486,11 +493,7 @@ class DataflashLog(object):
         # TODO: dataflash log parsing code is pretty hacky, should re-write more methodically
         df_header = bytearray([0xa3, 0x95, 0x80, 0x80])
         self.filename = logfile
-        if self.filename == '<stdin>':
-            f = sys.stdin
-        else:
-            f = open(self.filename, 'rb')
-
+        f = sys.stdin if self.filename == '<stdin>' else open(self.filename, 'rb')
         if format.lower() == 'bin':
             head = df_header
         elif format == 'log':
@@ -504,11 +507,10 @@ class DataflashLog(object):
                 head = f.read(4)
                 f.seek(0)
         else:
-            raise ValueError("Unknown log format for {}: {}".format(self.filename, format))
+            raise ValueError(f"Unknown log format for {self.filename}: {format}")
 
         if head == df_header:
             numBytes, lineNumber = self.read_binary(f, ignoreBadlines)
-            pass
         else:
             numBytes, lineNumber = self.read_text(f, ignoreBadlines)
 
@@ -517,12 +519,14 @@ class DataflashLog(object):
         self.filesizeKB = numBytes / 1024.0
         # TODO: switch duration calculation to use TimeMS values rather than GPS timestemp
         if "GPS" in self.channels:
-            # the GPS time label changed at some point, need to handle both
-            timeLabel = None
-            for i in 'TimeMS','TimeUS','Time':
-                if i in self.channels["GPS"]:
-                    timeLabel = i
-                    break
+            timeLabel = next(
+                (
+                    i
+                    for i in ('TimeMS', 'TimeUS', 'Time')
+                    if i in self.channels["GPS"]
+                ),
+                None,
+            )
             firstTimeGPS = int(self.channels["GPS"][timeLabel].listData[0][1])
             lastTimeGPS  = int(self.channels["GPS"][timeLabel].listData[-1][1])
             if timeLabel == 'TimeUS':
@@ -545,7 +549,7 @@ class DataflashLog(object):
     def set_vehicleType_from_MSG_vehicle(self, MSG_vehicle):
         ret = self.msg_vehicle_to_vehicle_map.get(MSG_vehicle, None)
         if ret is None:
-            raise ValueError("Unknown vehicle type (%s)" % (MSG_vehicle))
+            raise ValueError(f"Unknown vehicle type ({MSG_vehicle})")
         self.vehicleType = ret
         self.vehicleTypeString = VehicleTypeString[ret]
 
@@ -599,7 +603,9 @@ class DataflashLog(object):
         else:
             # if you've gotten to here the chances are we don't
             # know what vehicle you're flying...
-            raise Exception("Unknown log type for MODE line vehicletype=({}) line=({})".format(self.vehicleTypeString, repr(e)))
+            raise Exception(
+                f"Unknown log type for MODE line vehicletype=({self.vehicleTypeString}) line=({repr(e)})"
+            )
 
     def backPatchModeChanges(self):
         for (lineNumber, e) in self.backpatch_these_modechanges:
@@ -620,9 +626,8 @@ class DataflashLog(object):
             self.parameters[e.Name] = e.Value
         elif e.NAME == "MSG":
             tokens = e.Message.split(' ')
-            if not self.frame:
-                if "Frame" in tokens[0]:
-                    self.set_frame(tokens[1])
+            if not self.frame and "Frame" in tokens[0]:
+                self.set_frame(tokens[1])
             if not self.vehicleType:
                 try:
                     self.set_vehicleType_from_MSG_vehicle(tokens[0]);
@@ -639,12 +644,11 @@ class DataflashLog(object):
                 self.backpatch_these_modechanges.append( (lineNumber, e) )
             else:
                 self.handleModeChange(lineNumber, e)
-        # anything else must be the log data
         else:
             groupName = e.NAME
 
             # first time seeing this type of log line, create the channel storage
-            if not groupName in self.channels:
+            if groupName not in self.channels:
                 self.channels[groupName] = {}
                 for label in e.labels:
                     self.channels[groupName][label] = Channel()
@@ -670,7 +674,7 @@ class DataflashLog(object):
                 line = line.strip('\n\r')
                 tokens = line.split(', ')
                 # first handle the log header lines
-                if line == " Ready to drive." or line == " Ready to FLY.":
+                if line in [" Ready to drive.", " Ready to FLY."]:
                     continue
                 if line == "----------------------------------------":  # present in pre-3.0 logs
                     raise Exception("Log file seems to be in the older format (prior to self-describing logs), which isn't supported")
@@ -684,7 +688,7 @@ class DataflashLog(object):
                         self.freeRAM = int(tokens2[2])
                     elif tokens2[0] in knownHardwareTypes:
                         self.hardwareType = line      # not sure if we can parse this more usefully, for now only need to report it back verbatim
-                    elif (len(tokens2) == 2 or len(tokens2) == 3) and tokens2[1][0].lower() == "v":  # e.g. ArduCopter V3.1 (5c6503e2)
+                    elif len(tokens2) in {2, 3} and tokens2[1][0].lower() == "v":  # e.g. ArduCopter V3.1 (5c6503e2)
                         try:
                             self.set_vehicleType_from_MSG_vehicle(tokens2[0])
                         except ValueError:
@@ -694,18 +698,17 @@ class DataflashLog(object):
                             self.firmwareHash    = tokens2[2][1:-1]
                     else:
                         errorMsg = "Error parsing line %d of log file: %s" % (lineNumber, self.filename)
-                        if ignoreBadlines:
-                            print(errorMsg + " (skipping line)", file=sys.stderr)
-                            self.skippedLines += 1
-                        else:
+                        if not ignoreBadlines:
                             raise Exception("")
+                        print(f"{errorMsg} (skipping line)", file=sys.stderr)
+                        self.skippedLines += 1
                 else:
-                    if not tokens[0] in self.formats:
-                        raise ValueError("Unknown Format {}".format(tokens[0]))
+                    if tokens[0] not in self.formats:
+                        raise ValueError(f"Unknown Format {tokens[0]}")
                     e = self.formats[tokens[0]](*tokens[1:])
                     self.process(lineNumber, e)
             except Exception as e:
-                print("BAD LINE: " + str(line), file=sys.stderr)
+                print(f"BAD LINE: {str(line)}", file=sys.stderr)
                 if not ignoreBadlines:
                     raise Exception("Error parsing line %d of log file %s - %s" % (lineNumber,self.filename,e.args[0]))
         return (numBytes,lineNumber)
@@ -728,26 +731,26 @@ class DataflashLog(object):
         offset = 0
         while len(data) > offset + ctypes.sizeof(logheader):
             h = logheader.from_buffer(data, offset)
-            if not (h.head1 == 0xa3 and h.head2 == 0x95):
+            if h.head1 != 0xA3 or h.head2 != 0x95:
                 if ignoreBadlines == False:
                     raise ValueError(h)
-                else:
-                    if h.head1 == 0xff and h.head2 == 0xff and h.msgid == 0xff:
-                        print("Assuming EOF due to dataflash block tail filled with \\xff... (offset={off})".format(off=offset), file=sys.stderr)
-                        break
-                    offset += 1
-                    continue
-
-            if h.msgid in self._formats:
-                typ = self._formats[h.msgid]
-                if len(data) <= offset + typ.SIZE:
+                if h.head1 == 0xff and h.head2 == 0xff and h.msgid == 0xff:
+                    print("Assuming EOF due to dataflash block tail filled with \\xff... (offset={off})".format(off=offset), file=sys.stderr)
                     break
-                try:
-                    e = typ.from_buffer(data, offset)
-                except:
-                    print("data:{} offset:{} size:{} sizeof:{} sum:{}".format(len(data),offset,typ.SIZE,ctypes.sizeof(typ),offset+typ.SIZE))
-                    raise
-                offset += typ.SIZE
-            else:
-                raise ValueError(str(h) + "unknown type")
+                offset += 1
+                continue
+
+            if h.msgid not in self._formats:
+                raise ValueError(f"{str(h)}unknown type")
+            typ = self._formats[h.msgid]
+            if len(data) <= offset + typ.SIZE:
+                break
+            try:
+                e = typ.from_buffer(data, offset)
+            except:
+                print(
+                    f"data:{len(data)} offset:{offset} size:{typ.SIZE} sizeof:{ctypes.sizeof(typ)} sum:{offset + typ.SIZE}"
+                )
+                raise
+            offset += typ.SIZE
             yield e

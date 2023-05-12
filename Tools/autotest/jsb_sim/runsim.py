@@ -50,7 +50,7 @@ def setup_template(home):
     global opts
     v = home.split(',')
     if len(v) != 4:
-        print("home should be lat,lng,alt,hdg - '%s'" % home)
+        print(f"home should be lat,lng,alt,hdg - '{home}'")
         sys.exit(1)
     latitude = float(v[0])
     longitude = float(v[1])
@@ -63,7 +63,7 @@ def setup_template(home):
                                    'LONGITUDE': str(longitude),
                                    'HEADING': str(heading)}
     open(reset, mode='w').write(xml)
-    print("Wrote %s" % reset)
+    print(f"Wrote {reset}")
 
     baseport = int(opts.simout.split(':')[1])
 
@@ -71,13 +71,13 @@ def setup_template(home):
     out = os.path.join('jsb_sim', 'fgout.xml')
     xml = open(template).read() % {'FGOUTPORT': str(baseport+3)}
     open(out, mode='w').write(xml)
-    print("Wrote %s" % out)
+    print(f"Wrote {out}")
 
     template = os.path.join('jsb_sim', 'rascal_test_template.xml')
     out = os.path.join('jsb_sim', 'rascal_test.xml')
     xml = open(template).read() % {'JSBCONSOLEPORT': str(baseport+4)}
     open(out, mode='w').write(xml)
-    print("Wrote %s" % out)
+    print(f"Wrote {out}")
 
 
 def process_sitl_input(buf):
@@ -202,7 +202,7 @@ parser.add_option("--speedup", type='float', default=1.0, help="speedup from rea
 
 for m in ['home', 'script']:
     if not opts.__dict__[m]:
-        print("Missing required option '%s'" % m)
+        print(f"Missing required option '{m}'")
         parser.print_help()
         sys.exit(1)
 
@@ -216,7 +216,7 @@ setup_template(opts.home)
 # start child
 cmd = "JSBSim --realtime --suspend --nice --simulation-rate=%u --logdirectivefile=jsb_sim/fgout.xml --script=%s" % (opts.rate, opts.script)
 if opts.options:
-    cmd += ' %s' % opts.options
+    cmd += f' {opts.options}'
 
 jsb = pexpect.spawn(cmd, logfile=sys.stdout, timeout=10)
 jsb.delaybeforesend = 0
@@ -233,14 +233,14 @@ jsb.expect("Successfully connected to socket for output")
 jsb.expect("JSBSim Execution beginning")
 
 # setup output to jsbsim
-print("JSBSim console on %s" % str(jsb_out_address))
+print(f"JSBSim console on {str(jsb_out_address)}")
 jsb_out = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 jsb_out.connect(jsb_out_address)
 jsb_console = fdpexpect.fdspawn(jsb_out.fileno(), logfile=sys.stdout)
 jsb_console.delaybeforesend = 0
 
 # setup input from jsbsim
-print("JSBSim FG FDM input on %s" % str(jsb_in_address))
+print(f"JSBSim FG FDM input on {str(jsb_in_address)}")
 jsb_in = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 jsb_in.bind(jsb_in_address)
 jsb_in.setblocking(0)

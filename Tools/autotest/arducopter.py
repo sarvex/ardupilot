@@ -70,7 +70,7 @@ class AutoTestCopter(AutoTest):
         return os.path.realpath(__file__)
 
     def set_current_test_name(self, name):
-        self.current_test_name_directory = "ArduCopter_Tests/" + name + "/"
+        self.current_test_name_directory = f"ArduCopter_Tests/{name}/"
 
     def sitl_start_location(self):
         return SITL_START_LOCATION
@@ -406,8 +406,7 @@ class AutoTestCopter(AutoTest):
         self.set_rc(3, 1200)
         time_left = timeout - (self.get_sim_time() - tstart)
         self.progress("timeleft = %u" % time_left)
-        if time_left < 20:
-            time_left = 20
+        time_left = max(time_left, 20)
         self.wait_altitude(-10, 10, timeout=time_left, relative=True)
         self.set_rc(3, 1500)
         self.save_wp()
@@ -447,18 +446,20 @@ class AutoTestCopter(AutoTest):
             home = ""
             alt_valid = alt <= 1
             distance_valid = home_distance < distance_max
-            if check_alt:
-                if alt_valid and distance_valid:
-                    home = "HOME"
-            else:
-                if distance_valid:
-                    home = "HOME"
+            if (
+                check_alt
+                and alt_valid
+                and distance_valid
+                or not check_alt
+                and distance_valid
+            ):
+                home = "HOME"
             self.progress("Alt: %.02f  HomeDist: %.02f %s" %
                           (alt, home_distance, home))
 
             # our post-condition is that we are disarmed:
             if not self.armed():
-                if home == "":
+                if not home:
                     raise NotAchievedException("Did not get home")
                 # success!
                 return
@@ -756,9 +757,10 @@ class AutoTestCopter(AutoTest):
             if m.get_type() != "HEARTBEAT":
                 return
             # can't use mode_is here because we're in the message hook
-            print("Mode: %s" % self.mav.flightmode)
+            print(f"Mode: {self.mav.flightmode}")
             if self.mav.flightmode != "SMART_RTL":
                 raise NotAchievedException("Not in SMART_RTL")
+
         self.install_message_hook_context(ensure_smartrtl)
 
         self.set_heartbeat_rate(self.speedup)
@@ -1136,7 +1138,7 @@ class AutoTestCopter(AutoTest):
             if m is None:
                 continue
             if m.get_type() in ["STATUSTEXT", "COMMAND_ACK"]:
-                print("Got: %s" % str(m))
+                print(f"Got: {str(m)}")
             if self.mav.motors_armed():
                 self.progress("Armed")
                 return
@@ -1178,24 +1180,22 @@ class AutoTestCopter(AutoTest):
                 break
             # make sure we don't RTL:
             if not self.mode_is(using_mode):
-                raise NotAchievedException("Changed mode away from %s" % using_mode)
+                raise NotAchievedException(f"Changed mode away from {using_mode}")
             distance = self.distance_to_home(use_cached_home=True)
             inner_radius = fence_radius - fence_margin
             want_min = inner_radius - 1 # allow 1m either way
             want_max = inner_radius + 1 # allow 1m either way
             self.progress("Push: distance=%f %f<want<%f" %
                           (distance, want_min, want_max))
-            if distance < want_min:
-                if failed_min is False:
-                    self.progress("Failed min")
-                    failed_min = True
-            if distance > want_max:
-                if failed_max is False:
-                    self.progress("Failed max")
-                    failed_max = True
-        if failed_min and failed_max:
-            raise NotAchievedException("Failed both min and max checks.  Clever")
+            if distance < want_min and failed_min is False:
+                self.progress("Failed min")
+                failed_min = True
+            if distance > want_max and failed_max is False:
+                self.progress("Failed max")
+                failed_max = True
         if failed_min:
+            if failed_max:
+                raise NotAchievedException("Failed both min and max checks.  Clever")
             raise NotAchievedException("Failed min")
         if failed_max:
             raise NotAchievedException("Failed max")
@@ -1219,8 +1219,8 @@ class AutoTestCopter(AutoTest):
             now = self.get_sim_time_cached()
             if now - tstart > timeout:
                 raise NotAchievedException(
-                    "Did not see failure-to-arm messages (statustext=%s command_ack=%s" %
-                    (seen_statustext, seen_command_ack))
+                    f"Did not see failure-to-arm messages (statustext={seen_statustext} command_ack={seen_command_ack}"
+                )
             if now - arm_last_send > 1:
                 arm_last_send = now
                 self.send_mavlink_arm_command()
@@ -1229,18 +1229,18 @@ class AutoTestCopter(AutoTest):
                 continue
             if m.get_type() == "STATUSTEXT":
                 if expected_statustext in m.text:
-                    self.progress("Got: %s" % str(m))
+                    self.progress(f"Got: {str(m)}")
                     seen_statustext = True
                 elif "PreArm" in m.text and m.text[8:] not in ignore_prearm_failures:
-                    self.progress("Got: %s" % str(m))
-                    raise NotAchievedException("Unexpected prearm failure (%s)" % m.text)
+                    self.progress(f"Got: {str(m)}")
+                    raise NotAchievedException(f"Unexpected prearm failure ({m.text})")
 
             if m.get_type() == "COMMAND_ACK":
-                print("Got: %s" % str(m))
+                print(f"Got: {str(m)}")
                 if m.command == mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM:
                     if m.result != 4:
                         raise NotAchievedException("command-ack says we didn't fail to arm")
-                    self.progress("Got: %s" % str(m))
+                    self.progress(f"Got: {str(m)}")
                     seen_command_ack = True
             if self.mav.motors_armed():
                 raise NotAchievedException("Armed when we shouldn't have")
@@ -1258,7 +1258,7 @@ class AutoTestCopter(AutoTest):
         m = self.poll_home_position()
         if m is None:
             raise NotAchievedException("Did not receive HOME_POSITION")
-        self.progress("home: %s" % str(m))
+        self.progress(f"home: {str(m)}")
 
         self.start_subtest("ensure we can't arm if outside fence")
         self.load_fence("fence-in-middle-of-nowhere.txt")
@@ -2202,18 +2202,35 @@ class AutoTestCopter(AutoTest):
 
         self.context_stop_collecting('STATUSTEXT')
 
-        GPS_Order_Tests = [[gps2_nodeid, gps2_nodeid, gps2_nodeid, 0,
-                            "PreArm: Same Node Id {} set for multiple GPS".format(gps2_nodeid)],
-                           [gps1_nodeid, int(gps2_nodeid/2), gps1_nodeid, 0,
-                            "Selected GPS Node {} not set as instance {}".format(int(gps2_nodeid/2), 2)],
-                           [int(gps1_nodeid/2), gps2_nodeid, 0, gps2_nodeid,
-                            "Selected GPS Node {} not set as instance {}".format(int(gps1_nodeid/2), 1)],
-                           [gps1_nodeid, gps2_nodeid, gps1_nodeid, gps2_nodeid, ""],
-                           [gps2_nodeid, gps1_nodeid, gps2_nodeid, gps1_nodeid, ""],
-                           [gps1_nodeid, 0, gps1_nodeid, gps2_nodeid, ""],
-                           [0, gps2_nodeid, gps1_nodeid, gps2_nodeid, ""]]
+        GPS_Order_Tests = [
+            [
+                gps2_nodeid,
+                gps2_nodeid,
+                gps2_nodeid,
+                0,
+                f"PreArm: Same Node Id {gps2_nodeid} set for multiple GPS",
+            ],
+            [
+                gps1_nodeid,
+                gps2_nodeid // 2,
+                gps1_nodeid,
+                0,
+                f"Selected GPS Node {gps2_nodeid // 2} not set as instance 2",
+            ],
+            [
+                gps1_nodeid // 2,
+                gps2_nodeid,
+                0,
+                gps2_nodeid,
+                f"Selected GPS Node {gps1_nodeid // 2} not set as instance 1",
+            ],
+            [gps1_nodeid, gps2_nodeid, gps1_nodeid, gps2_nodeid, ""],
+            [gps2_nodeid, gps1_nodeid, gps2_nodeid, gps1_nodeid, ""],
+            [gps1_nodeid, 0, gps1_nodeid, gps2_nodeid, ""],
+            [0, gps2_nodeid, gps1_nodeid, gps2_nodeid, ""],
+        ]
         for case in GPS_Order_Tests:
-            self.progress("############################### Trying Case: " + str(case))
+            self.progress(f"############################### Trying Case: {str(case)}")
             self.set_parameter("GPS1_CAN_OVRIDE", case[0])
             self.set_parameter("GPS2_CAN_OVRIDE", case[1])
             self.drain_mav()
@@ -2232,22 +2249,20 @@ class AutoTestCopter(AutoTest):
 
             self.context_stop_collecting('STATUSTEXT')
             self.change_mode('LOITER')
-            if case[2] == 0 and case[3] == 0:
-                if gps1_det_text or gps2_det_text:
-                    raise NotAchievedException("Failed ordering for requested CASE:", case)
+            if case[2] == 0 and case[3] == 0 and (gps1_det_text or gps2_det_text):
+                raise NotAchievedException("Failed ordering for requested CASE:", case)
 
-            if case[2] == 0 or case[3] == 0:
-                if bool(gps1_det_text is not None) == bool(gps2_det_text is not None):
-                    print(gps1_det_text)
-                    print(gps2_det_text)
-                    raise NotAchievedException("Failed ordering for requested CASE:", case)
+            if (case[2] == 0 or case[3] == 0) and (gps1_det_text is not None) == (
+                gps2_det_text is not None
+            ):
+                print(gps1_det_text)
+                print(gps2_det_text)
+                raise NotAchievedException("Failed ordering for requested CASE:", case)
 
-            if gps1_det_text:
-                if case[2] != int(gps1_det_text.split('-')[1]):
-                    raise NotAchievedException("Failed ordering for requested CASE:", case)
-            if gps2_det_text:
-                if case[3] != int(gps2_det_text.split('-')[1]):
-                    raise NotAchievedException("Failed ordering for requested CASE:", case)
+            if gps1_det_text and case[2] != int(gps1_det_text.split('-')[1]):
+                raise NotAchievedException("Failed ordering for requested CASE:", case)
+            if gps2_det_text and case[3] != int(gps2_det_text.split('-')[1]):
+                raise NotAchievedException("Failed ordering for requested CASE:", case)
             if len(case[4]):
                 self.context_collect('STATUSTEXT')
                 self.run_cmd(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
@@ -2331,7 +2346,7 @@ class AutoTestCopter(AutoTest):
                              servo.servo8_raw]
 
                 self.progress("PWM output per motor")
-                for i, pwm in enumerate(servo_pwm[0:servo_count]):
+                for i, pwm in enumerate(servo_pwm[:servo_count]):
                     if pwm > 1900:
                         state = "oversaturated"
                     elif pwm < 1200:
@@ -2475,7 +2490,7 @@ class AutoTestCopter(AutoTest):
         self.wait_ready_to_arm()
 
         old_pos = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
-        print("old_pos=%s" % str(old_pos))
+        print(f"old_pos={str(old_pos)}")
 
         self.context_push()
 
@@ -2506,7 +2521,7 @@ class AutoTestCopter(AutoTest):
                                                         old_pos.alt)
                 gpi = self.mav.recv_match(type='GLOBAL_POSITION_INT',
                                           blocking=True)
-                self.progress("gpi=%s" % str(gpi))
+                self.progress(f"gpi={str(gpi)}")
                 if gpi.lat != 0:
                     break
 
